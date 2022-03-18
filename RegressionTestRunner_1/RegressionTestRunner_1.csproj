@@ -1,0 +1,95 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>8.0.30703</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{AC61C346-B01F-4955-A00D-DF5A4B4607EF}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>RegressionTestRunner_1</RootNamespace>
+    <AssemblyName>RegressionTestRunner_1</AssemblyName>
+    <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <LangVersion>
+    </LangVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <CodeAnalysisRuleSet>..\Internal\Code Analysis\SonarLint-QuickActions-Active.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <CodeAnalysisRuleSet>..\Internal\Code Analysis\SonarLint-QuickActions-Inactive.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>None</ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\RegressionTestRunner_63000\RegressionTestRunner_63000.csproj">
+      <Project>{84EFD1F9-C845-4263-9A52-942725FCA929}</Project>
+      <Name>RegressionTestRunner_63000</Name>
+    </ProjectReference>
+    <Reference Include="System" />
+    <ProjectReference Include="..\AutomationScript_ClassLibrary\AutomationScript_ClassLibrary.csproj">
+      <Project>{D36D4E2C-E69A-4F3F-88DA-564179D64850}</Project>
+      <Name>AutomationScript_ClassLibrary</Name>
+    </ProjectReference>
+    <Reference Include="SLManagedAutomation">
+      <HintPath>C:\Skyline DataMiner\Files\SLManagedAutomation.dll</HintPath>
+    </Reference>
+    <Reference Include="SLNetTypes">
+      <HintPath>C:\Skyline DataMiner\Files\SLNetTypes.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Core" />
+    <Reference Include="Skyline.DataMiner.Storage.Types">
+      <HintPath>C:\Skyline DataMiner\Files\Skyline.DataMiner.Storage.Types.dll</HintPath>
+    </Reference>
+    <Reference Include="SLLoggerUtil">
+      <HintPath>C:\Skyline DataMiner\Files\SLLoggerUtil.dll</HintPath>
+    </Reference>
+    <Content Include="Settings.StyleCop" />
+    <Content Include=".editorconfig" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="AutomationScripts\AutomationScript.cs" />
+    <Compile Include="AutomationScripts\AutomationScriptDirectory.cs" />
+    <Compile Include="AutomationScripts\AutomationScriptHelper.cs" />
+    <Compile Include="Dialogs\ConfirmationDialog.cs" />
+    <Compile Include="Dialogs\ReportDialog.cs" />
+    <Compile Include="Dialogs\ScriptSelectionDialog.cs" />
+    <Compile Include="Helpers\CollapseButtonHelpers.cs" />
+    <Compile Include="Helpers\IEngineExtensions.cs" />
+    <Compile Include="Helpers\ProgressEventArgs.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RegressionTestManager.cs" />
+    <Compile Include="Script.cs" />
+    <Compile Include="Sections\CubeCompliantTreeViewSection.cs" />
+    <Compile Include="Sections\ReportSection.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <ProjectExtensions>
+    <VisualStudio>
+      <UserProperties DisLinkedXmlFile="..\RegressionTestRunner.xml" DisProjectType="automationScriptProject" DisLinkId="1" />
+    </VisualStudio>
+  </ProjectExtensions>
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>
