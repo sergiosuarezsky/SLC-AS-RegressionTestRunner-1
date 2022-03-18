@@ -83,6 +83,7 @@ namespace RegressionTestRunner
 			try
 			{
 				engine.SetFlag(RunTimeFlags.NoKeyCaching);
+				engine.SetFlag(RunTimeFlags.NoInformationEvents);
 				engine.Timeout = TimeSpan.FromHours(10);
 				RunSafe(engine);
 			}
