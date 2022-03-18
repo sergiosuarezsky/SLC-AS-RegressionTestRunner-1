@@ -17,6 +17,7 @@
 		private const string RootDirectoryName = @"RTManager";
 
 		private readonly Label selectTestsLabel = new Label("Select regression tests to run:");
+		private readonly Label noRegressionTestsFoundLabel = new Label("No regression tests found on the DMA");
 
 		private CubeCompliantTreeViewSection treeView;
 		private AutomationScriptDirectory rootDirectory;
@@ -31,8 +32,6 @@
 		{
 			get
 			{
-				Engine.Log($"Selected Scripts: {String.Join(", ", treeView.CheckedLeaves.Select(x => x.DisplayValue))}");
-
 				return (from automationScript in rootDirectory.AllAutomationScripts
 						where treeView.CheckedLeaves.Any(x => x.KeyValue.Equals(automationScript.ToString()))
 						select automationScript);
@@ -41,7 +40,7 @@
 
 		private void Initialize()
 		{
-			Title = "Regression Test Runner";
+			Title = "Select Tests";
 			rootDirectory = AutomationScriptHelper.RetrieveScripts(Engine, RootDirectoryName);
 			treeView = new CubeCompliantTreeViewSection(new[] { BuildTree(rootDirectory) });
 			treeView.Collapse();
@@ -53,16 +52,24 @@
 
 			int row = -1;
 
-			AddWidget(selectTestsLabel, ++row, 0, 1, 5);
+			if (rootDirectory.AllAutomationScripts.Any())
+			{
+				AddWidget(selectTestsLabel, ++row, 0, 1, 5);
 
-			AddSection(treeView, new SectionLayout(++row, 0));
-			row += treeView.RowCount;
+				AddSection(treeView, new SectionLayout(++row, 0));
+				row += treeView.RowCount;
 
-			AddWidget(new WhiteSpace(), ++row, 0, 1, 5);
-			AddWidget(RunTestsButton, ++row, 0, 1, 5);
+				AddWidget(new WhiteSpace(), ++row, 0, 1, 5);
+				AddWidget(SelectAgentButton, ++row, 0, 1, 5);
 
-			Engine.Log("ScriptSelectionDialog: " + treeView.Depth);
-			for (int i = 0; i < treeView.Depth; i++) SetColumnWidth(i, 50);
+				for (int i = 0; i < treeView.Depth; i++) SetColumnWidth(i, 50);
+			}
+			else
+			{
+				AddWidget(noRegressionTestsFoundLabel, ++row, 0);
+
+				AddWidget(OkButton, ++row, 0);
+			}
 		}
 
 		private TreeViewItem BuildTree(AutomationScriptDirectory directory)
@@ -91,6 +98,8 @@
 			return items;
 		}
 
-		public Button RunTestsButton { get; private set; } = new Button("Run Tests");
+		public Button SelectAgentButton { get; private set; } = new Button("Select Agent...");
+
+		public Button OkButton { get; private set; } = new Button("OK");
 	}
 }

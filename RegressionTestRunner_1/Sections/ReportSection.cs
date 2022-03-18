@@ -2,6 +2,7 @@
 {
 	using System;
 	using System.Collections.Generic;
+	using System.IO;
 	using System.Linq;
 	using System.Text;
 	using System.Threading.Tasks;
@@ -19,8 +20,6 @@
 		private readonly TextBox loggingTextBox = new TextBox { Height = 500, Width = 800, IsMultiline = true };
 		private readonly WhiteSpace whiteSpace = new WhiteSpace();
 
-		private bool wasLoggingRetrieved = false;
-
 		public ReportSection(RegressionTestManager regressionTestManager, string automationScriptName)
 		{
 			this.regressionTestManager = regressionTestManager;
@@ -32,22 +31,35 @@
 
 		private void Initialize()
 		{
-			bool wasSuccessful = regressionTestManager.WasTestSuccessful(automationScriptName);
+			string status;
 			if (regressionTestManager.TryGetLogFilePath(automationScriptName, out string logFilePath))
 			{
 				pathLabel.Text = $"Log file: {logFilePath}";
+
+				regressionTestManager.TryGetLogging(automationScriptName, out string logging);
+				loggingTextBox.Text = logging;
+
+				bool success = regressionTestManager.WasTestSuccessful(automationScriptName);
+				status = success ? "Success" : "Fail";
 			}
 			else
 			{
-				pathLabel.Text = $"Log file not found";
-			}
+				logFilePath = Path.Combine(RegressionTestManager.TestOutputDirectory, automationScriptName);
 
-			title.Text = $"{automationScriptName} - {(wasSuccessful ? "Success" : "Fail")}";
+				StringBuilder sb = new StringBuilder();
+				sb.AppendLine("Log file not found");
+				sb.AppendLine("This could be because the RT ran on an agent different than the one you are connected with.");
+				sb.AppendLine($"The logging should be available in {logFilePath}");
+
+				pathLabel.Text = sb.ToString();
+				status = "Unknown";
+			}
+			
+			title.Text = $"{automationScriptName} - {status}";
 
 			collapseButton.LinkedWidgets.Add(pathLabel);
 			collapseButton.LinkedWidgets.Add(loggingTextBox);
 			collapseButton.LinkedWidgets.Add(whiteSpace);
-			collapseButton.Pressed += (s, a) => InitializeLogging();
 			collapseButton.Collapse();
 		}
 
@@ -65,15 +77,6 @@
 			AddWidget(loggingTextBox, ++row, 1);
 
 			AddWidget(whiteSpace, ++row, 0, 1, 2);
-		}
-
-		private void InitializeLogging()
-		{
-			if (wasLoggingRetrieved) return;
-			if (!regressionTestManager.TryGetLogging(automationScriptName, out string logging)) return;
-
-			loggingTextBox.Text = logging;
-			wasLoggingRetrieved = true;
 		}
 	}
 }

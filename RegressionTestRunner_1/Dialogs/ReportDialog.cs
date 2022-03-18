@@ -46,7 +46,7 @@
 			SetColumnWidth(0, 50);
 		}
 
-		public Button PerformAdditionalTestsButton { get; private set; } = new Button("Perform Additional Tests");
+		public Button PerformAdditionalTestsButton { get; private set; } = new Button("Perform Additional Tests...");
 
 		public Button FinishButton { get; private set; } = new Button("Finish");
 	}

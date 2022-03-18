@@ -58,6 +58,7 @@ namespace RegressionTestRunner
 	using RegressionTestRunner.Helpers;
 	using Skyline.DataMiner.Automation;
 	using Skyline.DataMiner.DeveloperCommunityLibrary.InteractiveAutomationToolkit;
+	using Skyline.DataMiner.Library.Automation;
 
 	public class Script
 	{
@@ -66,6 +67,7 @@ namespace RegressionTestRunner
 		private RegressionTestManager regressionTestManager;
 
 		private ScriptSelectionDialog scriptSelectionDialog;
+		private AgentSelectionDialog agentSelectionDialog;
 		private ConfirmationDialog confirmationDialog;
 		private MessageDialog noTestsSelectedDialog;
 		private ProgressDialog progressDialog;
@@ -102,7 +104,13 @@ namespace RegressionTestRunner
 
 			// Define dialogs here
 			scriptSelectionDialog = new ScriptSelectionDialog(engine);
-			scriptSelectionDialog.RunTestsButton.Pressed += (s, e) => VerifySelectedTests();
+			scriptSelectionDialog.SelectAgentButton.Pressed += (s, e) => app.ShowDialog(agentSelectionDialog);
+			scriptSelectionDialog.OkButton.Pressed += (s, e) => engine.ExitSuccess("No tests available");
+
+			var agents = engine.GetDms().GetAgents().Where(x => x.State == Skyline.DataMiner.Library.Common.AgentState.Running);
+			agentSelectionDialog = new AgentSelectionDialog(engine, agents);
+			agentSelectionDialog.BackButton.Pressed += (s, e) => app.ShowDialog(scriptSelectionDialog);
+			agentSelectionDialog.RunTestsButton.Pressed += (s, e) => VerifySelectedTests();
 
 			confirmationDialog = new ConfirmationDialog(engine) { Title = "Run Tests" };
 			confirmationDialog.NoButton.Pressed += (s, e) => app.ShowDialog(scriptSelectionDialog);
@@ -121,7 +129,7 @@ namespace RegressionTestRunner
 
 			app.ShowDialog(progressDialog);
 
-			regressionTestManager = new RegressionTestManager(engine, scriptSelectionDialog.SelectedScripts.Select(x => x.Name).ToArray());
+			regressionTestManager = new RegressionTestManager(engine, agentSelectionDialog.SelectedAgent, scriptSelectionDialog.SelectedScripts.Select(x => x.Name).ToArray());
 			regressionTestManager.ProgressReported += (s, e) => progressDialog.AddProgressLine(e.Progress);
 
 			regressionTestManager.Run();
@@ -148,7 +156,7 @@ namespace RegressionTestRunner
 			}
 
 			StringBuilder sb = new StringBuilder();
-			sb.AppendLine("Are you sure you want to run the following tests?");
+			sb.AppendLine($"Are you sure you want to run the following tests on agent {agentSelectionDialog.SelectedAgent.GetDisplayName()}?");
 			foreach (var script in scriptSelectionDialog.SelectedScripts)
 			{
 				sb.AppendLine($"\t- {script.Name}");

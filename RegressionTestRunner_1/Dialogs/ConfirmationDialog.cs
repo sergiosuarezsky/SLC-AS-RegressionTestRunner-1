@@ -39,8 +39,8 @@
 
 			AddWidget(new WhiteSpace(), ++row, 0, 1, 2);
 
-			AddWidget(YesButton, ++row, 0, 1, 1, HorizontalAlignment.Left);
-			AddWidget(NoButton, row, 1, 1, 1, HorizontalAlignment.Right);
+			AddWidget(NoButton, ++row, 0, 1, 1, HorizontalAlignment.Left);
+			AddWidget(YesButton, row, 1, 1, 1, HorizontalAlignment.Right);
 		}
 	}
 }

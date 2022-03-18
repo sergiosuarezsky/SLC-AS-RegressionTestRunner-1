@@ -7,19 +7,22 @@
 	using RegressionTestRunner.AutomationScripts;
 	using RegressionTestRunner.Helpers;
 	using Skyline.DataMiner.Automation;
+	using Skyline.DataMiner.Library.Common;
+	using Skyline.DataMiner.Net.Messages;
 
 	public class RegressionTestManager
 	{
-		private const string TestOutputDirectory = @"C:\RTManager\TestOutput";
+		public static readonly string TestOutputDirectory = @"C:\RTManager\TestOutput";
 
 		private readonly IEngine engine;
+		private readonly IDma agent;
 		private readonly string[] testScripts;
 		private readonly Dictionary<string, string> logFilePaths = new Dictionary<string, string>();
-		private readonly Dictionary<string, bool> runStates = new Dictionary<string, bool>();
 
-		public RegressionTestManager(IEngine engine, params string[] testScripts)
+		public RegressionTestManager(IEngine engine, IDma agent, params string[] testScripts)
 		{
 			this.engine = engine;
+			this.agent = agent;
 			this.testScripts = testScripts;
 		}
 
@@ -35,15 +38,21 @@
 
 				try
 				{
-					SubScriptOptions subscriptInfo = engine.PrepareSubScript(testScript);
-					subscriptInfo.Synchronous = true;
-					subscriptInfo.StartScript();
-					runStates.Add(testScript, true);
+					engine.SendSLNetSingleResponseMessage(new ExecuteScriptMessage(agent.Id, testScript)
+					{
+						Options = new SA(new[]
+						{
+							"USER:cookie",
+							"OPTIONS:0",
+							"CHECKSETS:FALSE",
+							"EXTENDED_ERROR_INFO",
+							"DEFER:FALSE" // async execution
+						})
+					});
 				}
 				catch (Exception e)
 				{
 					ReportProgress($"Something when wrong when running test {testScript} {e}");
-					runStates.Add(testScript, false);
 				}
 
 				DateTime endTime = DateTime.Now;
@@ -82,10 +91,10 @@
 			return true;
 		}
 
-		public bool WasTestSuccessful(string testScript)
+		public bool WasTestSuccessful(string automationScript)
 		{
-			if (!runStates.TryGetValue(testScript, out bool state)) return false;
-			return state;
+			if (!TryGetLogging(automationScript, out string logging)) return false;
+			return !logging.Contains("RT_PORTAL_FAIL");
 		}
 
 		private void RegisterLogFilePath(string testScript, DateTime start, DateTime end)

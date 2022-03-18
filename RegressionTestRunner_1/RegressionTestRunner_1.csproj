@@ -38,10 +38,6 @@
     <ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>None</ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\RegressionTestRunner_63000\RegressionTestRunner_63000.csproj">
-      <Project>{84EFD1F9-C845-4263-9A52-942725FCA929}</Project>
-      <Name>RegressionTestRunner_63000</Name>
-    </ProjectReference>
     <Reference Include="System" />
     <ProjectReference Include="..\AutomationScript_ClassLibrary\AutomationScript_ClassLibrary.csproj">
       <Project>{D36D4E2C-E69A-4F3F-88DA-564179D64850}</Project>
@@ -67,10 +63,12 @@
     <Compile Include="AutomationScripts\AutomationScript.cs" />
     <Compile Include="AutomationScripts\AutomationScriptDirectory.cs" />
     <Compile Include="AutomationScripts\AutomationScriptHelper.cs" />
+    <Compile Include="Dialogs\AgentSelectionDialog.cs" />
     <Compile Include="Dialogs\ConfirmationDialog.cs" />
     <Compile Include="Dialogs\ReportDialog.cs" />
     <Compile Include="Dialogs\ScriptSelectionDialog.cs" />
     <Compile Include="Helpers\CollapseButtonHelpers.cs" />
+    <Compile Include="Helpers\IDmaExtensions.cs" />
     <Compile Include="Helpers\IEngineExtensions.cs" />
     <Compile Include="Helpers\ProgressEventArgs.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -82,7 +80,7 @@
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>
     <VisualStudio>
-      <UserProperties DisLinkedXmlFile="..\RegressionTestRunner.xml" DisProjectType="automationScriptProject" DisLinkId="1" />
+      <UserProperties DisLinkId="1" DisProjectType="automationScriptProject" DisLinkedXmlFile="..\RegressionTestRunner.xml" />
     </VisualStudio>
   </ProjectExtensions>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
