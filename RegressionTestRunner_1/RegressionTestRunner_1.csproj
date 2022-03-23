@@ -38,6 +38,10 @@
     <ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>None</ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Newtonsoft.Json, Version=12.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\Skyline DataMiner\ProtocolScripts\Newtonsoft.Json.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <ProjectReference Include="..\AutomationScript_ClassLibrary\AutomationScript_ClassLibrary.csproj">
       <Project>{D36D4E2C-E69A-4F3F-88DA-564179D64850}</Project>
@@ -73,6 +77,10 @@
     <Compile Include="Helpers\ProgressEventArgs.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RegressionTestManager.cs" />
+    <Compile Include="RegressionTests\PostBody.cs" />
+    <Compile Include="RegressionTests\Test.cs" />
+    <Compile Include="RegressionTests\TestCase.cs" />
+    <Compile Include="ScriptConfiguration.cs" />
     <Compile Include="Script.cs" />
     <Compile Include="Sections\CubeCompliantTreeViewSection.cs" />
     <Compile Include="Sections\ReportSection.cs" />
@@ -80,7 +88,7 @@
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>
     <VisualStudio>
-      <UserProperties DisLinkId="1" DisProjectType="automationScriptProject" DisLinkedXmlFile="..\RegressionTestRunner.xml" />
+      <UserProperties DisLinkedXmlFile="..\RegressionTestRunner.xml" DisProjectType="automationScriptProject" DisLinkId="1" />
     </VisualStudio>
   </ProjectExtensions>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

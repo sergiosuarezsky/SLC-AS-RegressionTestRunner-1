@@ -54,7 +54,7 @@
 
 			AddWidget(RunTestsButton, ++row, 0, 1, 2);
 
-			AddWidget(BackButton, ++row, 0, 1, 2);
+			AddWidget(BackButton, row + 1, 0, 1, 2);
 		}
 
 		public IDma SelectedAgent { get { return agents[agentsDropDown.Selected]; } }

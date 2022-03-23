@@ -2,18 +2,14 @@
 {
 	using System;
 	using System.Collections.Generic;
+	using System.Linq;
 
 	public class AutomationScriptDirectory
 	{
-		public AutomationScriptDirectory(string name)
+		public AutomationScriptDirectory(string path)
 		{
-			Name = name ?? throw new ArgumentException(nameof(name));
-		}
-
-		public AutomationScriptDirectory(string name, string path)
-		{
-			Name = name ?? throw new ArgumentException(nameof(name));
 			Path = path ?? throw new ArgumentException(nameof(path));
+			Name = path.Split('/').Last();
 		}
 
 		public IEnumerable<AutomationScript> AllAutomationScripts
@@ -40,8 +36,7 @@
 
 		public override string ToString()
 		{
-			if (String.IsNullOrEmpty(Path)) return Name;
-			return String.Join(System.IO.Path.DirectorySeparatorChar.ToString(), new[] { Path, Name });
+			return Path;
 		}
 	}
 }

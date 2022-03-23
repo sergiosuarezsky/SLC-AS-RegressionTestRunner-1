@@ -52,8 +52,10 @@ dd/mm/2022	1.0.0.1		XXX, Skyline	Initial version
 namespace RegressionTestRunner
 {
 	using System;
+	using System.Collections.Generic;
 	using System.Linq;
 	using System.Text;
+	using RegressionTestRunner.AutomationScripts;
 	using RegressionTestRunner.Dialogs;
 	using RegressionTestRunner.Helpers;
 	using Skyline.DataMiner.Automation;
@@ -62,8 +64,10 @@ namespace RegressionTestRunner
 
 	public class Script
 	{
+		private const string ScriptConfigurationParamName = "ScriptConfiguration";
+
 		private InteractiveController app;
-		private Engine engine;
+		private IEngine engine;
 		private RegressionTestManager regressionTestManager;
 
 		private ScriptSelectionDialog scriptSelectionDialog;
@@ -83,7 +87,6 @@ namespace RegressionTestRunner
 			try
 			{
 				engine.SetFlag(RunTimeFlags.NoKeyCaching);
-				engine.SetFlag(RunTimeFlags.NoInformationEvents);
 				engine.Timeout = TimeSpan.FromHours(10);
 				RunSafe(engine);
 			}
@@ -98,10 +101,49 @@ namespace RegressionTestRunner
 			}
 		}
 
-		private void RunSafe(Engine engine)
+		private void RunSafe(IEngine engine)
+		{
+			this.engine = engine;
+
+			string serializedConfig = engine.GetScriptParam(ScriptConfigurationParamName)?.Value;
+			if (String.IsNullOrWhiteSpace(serializedConfig) || !ScriptConfiguration.TryDeserialize(serializedConfig, out ScriptConfiguration scriptConfiguration))
+			{
+				RunInteractive();
+			}
+			else
+			{
+				RunSilent(scriptConfiguration);
+			}
+		}
+
+		private void RunSilent(ScriptConfiguration scriptConfiguration)
+		{
+			HashSet<string> scripts = new HashSet<string>();
+
+			// Get scripts from folders
+			foreach (string folder in scriptConfiguration.Folders)
+			{
+				var directory = AutomationScriptHelper.RetrieveScripts(engine, folder, false);
+				foreach (string automationScript in directory.AllAutomationScripts.Select(x => x.Name)) scripts.Add(automationScript);
+			}
+
+			// Get standalone scripts
+			foreach (string automationScript in scriptConfiguration.Scripts)
+			{
+				scripts.Add(automationScript);
+			}
+
+			engine.Log(nameof(Script), nameof(RunSilent), $"Scripts to run: {String.Join(", ", scripts)}");
+
+			regressionTestManager = new RegressionTestManager(engine, scripts.ToArray());
+			regressionTestManager.ProgressReported += (sender, args) => engine.GenerateInformation(args.Progress);
+			regressionTestManager.ProgressReported += (sender, args) => engine.Log(args.Progress);
+			regressionTestManager.Run();
+		}
+
+		private void RunInteractive()
 		{
 			app = new InteractiveController(engine);
-			this.engine = engine;
 
 			// Define dialogs here
 			scriptSelectionDialog = new ScriptSelectionDialog(engine);

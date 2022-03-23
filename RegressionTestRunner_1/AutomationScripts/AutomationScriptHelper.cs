@@ -1,15 +1,17 @@
 ﻿namespace RegressionTestRunner.AutomationScripts
 {
 	using System;
+	using System.IO;
 	using System.Linq;
+	using RegressionTestRunner.Helpers;
 	using Skyline.DataMiner.Automation;
 	using Skyline.DataMiner.Net.Messages.Advanced;
 
 	public static class AutomationScriptHelper
 	{
-		public static AutomationScriptDirectory RetrieveScripts(IEngine engine, string directoryName)
+		public static AutomationScriptDirectory RetrieveScripts(IEngine engine, string directoryPath, bool searchSubDirectories = true)
 		{
-			AutomationScriptDirectory rootDirectory = new AutomationScriptDirectory(directoryName, String.Empty);
+			AutomationScriptDirectory rootDirectory = new AutomationScriptDirectory(CleanPath(directoryPath));
 			var response = engine.SendSLNetSingleResponseMessage(new GetAutomationInfoMessage(21, String.Empty)) as GetAutomationInfoResponseMessage;
 			if (response == null) return rootDirectory;
 			if (response.psaRet == null || response.psaRet.Psa == null || !response.psaRet.Psa.Any()) return rootDirectory;
@@ -18,7 +20,9 @@
 			{
 				if (!sa.Any()) continue;
 
-				string fullPath = sa.First();
+				string fullPath = CleanPath(sa.First());
+
+				if (!searchSubDirectories && !fullPath.Equals(directoryPath)) continue;
 				if (!TryCreateDirectory(rootDirectory, fullPath, out AutomationScriptDirectory directory)) continue;
 
 				foreach (string scriptName in sa.Skip(1))
@@ -40,15 +44,17 @@
 		{
 			directory = null;
 
-			string[] splitPath = path.Split('/', '\\');
-			if (!splitPath.First().Equals(rootDirectory.Name)) return false;
+			string[] splitPath = path.Split('/');
+			string[] splitRootPath = rootDirectory.Path.Split('/');
+			if (!splitPath.First().Equals(splitRootPath.First())) return false;
 
 			directory = rootDirectory;
 			foreach (string subPath in splitPath.Skip(1))
 			{
 				if (!directory.Directories.TryGetValue(subPath, out AutomationScriptDirectory childDirectory))
 				{
-					AutomationScriptDirectory newChildDirectory = new AutomationScriptDirectory(subPath, directory.ToString());
+					string childPath = $"{directory.Path}/{subPath}";
+					AutomationScriptDirectory newChildDirectory = new AutomationScriptDirectory(childPath);
 					directory.Directories.Add(subPath, newChildDirectory);
 					directory = newChildDirectory;
 				}
@@ -59,6 +65,11 @@
 			}
 
 			return true;
+		}
+
+		private static string CleanPath(string path)
+		{
+			return path.Replace("\\", "/").Trim('/');
 		}
 	}
 }

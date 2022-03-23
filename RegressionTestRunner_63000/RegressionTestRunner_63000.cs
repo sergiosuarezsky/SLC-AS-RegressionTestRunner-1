@@ -28,11 +28,11 @@ namespace Skyline.DataMiner
         namespace Automation
         {
             /// <summary>
-            /// Defines extension methods on the <see cref = "Engine"/> class.
+            /// Defines extension methods on the <see cref = "IEngine"/> interface.
             /// </summary>
             [Skyline.DataMiner.Library.Common.Attributes.DllImport("SLManagedAutomation.dll")]
             [Skyline.DataMiner.Library.Common.Attributes.DllImport("SLNetTypes.dll")]
-            public static class EngineExtensions
+            public static class IEngineExtensions
             {
 #pragma warning disable S1104 // Fields should not have public accessibility
 
@@ -42,7 +42,7 @@ namespace Skyline.DataMiner
                 /// Allows an override of the behavior of GetDms to return a Fake or Mock of <see cref = "IDms"/>.
                 /// Important: When this is used, unit tests should never be run in parallel.
                 /// </summary>
-                public static System.Func<Skyline.DataMiner.Automation.Engine, Skyline.DataMiner.Library.Common.IDms> OverrideGetDms = engine =>
+                public static System.Func<Skyline.DataMiner.Automation.IEngine, Skyline.DataMiner.Library.Common.IDms> OverrideGetDms = engine =>
                 {
                     return new Skyline.DataMiner.Library.Common.Dms(new Skyline.DataMiner.Library.Common.ConnectionCommunication(Skyline.DataMiner.Automation.Engine.SLNetRaw));
                 }
@@ -55,10 +55,10 @@ namespace Skyline.DataMiner
                 /// <summary>
                 /// Retrieves an object implementing the <see cref = "IDms"/> interface.
                 /// </summary>
-                /// <param name = "engine">The <see cref = "Engine"/> instance.</param>
+                /// <param name = "engine">The <see cref = "IEngine"/> implementation.</param>
                 /// <exception cref = "ArgumentNullException"><paramref name = "engine"/> is <see langword = "null"/>.</exception>
                 /// <returns>The <see cref = "IDms"/> object.</returns>
-                public static Skyline.DataMiner.Library.Common.IDms GetDms(this Skyline.DataMiner.Automation.Engine engine)
+                public static Skyline.DataMiner.Library.Common.IDms GetDms(this Skyline.DataMiner.Automation.IEngine engine)
                 {
                     if (engine == null)
                     {
@@ -655,6 +655,10 @@ namespace Skyline.DataMiner
                 /// </summary>
                 private bool isLoaded;
                 /// <summary>
+                /// Cached element information message.
+                /// </summary>
+                private Skyline.DataMiner.Net.Messages.ElementInfoEventMessage cachedElementInfoMessage;
+                /// <summary>
                 /// The object used for DMS communication.
                 /// </summary>
                 private Skyline.DataMiner.Library.Common.ICommunication communication;
@@ -737,6 +741,55 @@ namespace Skyline.DataMiner
                 }
 
                 /// <summary>
+                /// Determines whether an element with the specified name exists in the DataMiner System.
+                /// </summary>
+                /// <param name = "elementName">The name of the element.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "elementName"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException"><paramref name = "elementName"/> is the empty string ("") or white space.</exception>
+                /// <returns><c>true</c> if the element exists; otherwise, <c>false</c>.</returns>
+                public bool ElementExists(string elementName)
+                {
+                    if (elementName == null)
+                    {
+                        throw new System.ArgumentNullException("elementName");
+                    }
+
+                    if (System.String.IsNullOrWhiteSpace(elementName))
+                    {
+                        throw new System.ArgumentException("The element name is the empty string (\"\") or white space.", "elementName");
+                    }
+
+                    try
+                    {
+                        Skyline.DataMiner.Net.Messages.GetElementByNameMessage message = new Skyline.DataMiner.Net.Messages.GetElementByNameMessage(elementName);
+                        Skyline.DataMiner.Net.Messages.ElementInfoEventMessage response = (Skyline.DataMiner.Net.Messages.ElementInfoEventMessage)communication.SendSingleResponseMessage(message);
+                        // Cache the response of SLNet.
+                        // Could be useful when this call is used within a "GetElement" this makes sure that we do not double call SLNet.
+                        if (response != null)
+                        {
+                            cachedElementInfoMessage = response;
+                            return true;
+                        }
+                        else
+                        {
+                            return false;
+                        }
+                    }
+                    catch (Skyline.DataMiner.Net.Exceptions.DataMinerException e)
+                    {
+                        if (e.ErrorCode == -2146233088)
+                        {
+                            // 0x80131500, Element "[element name]" is unavailable.
+                            return false;
+                        }
+                        else
+                        {
+                            throw;
+                        }
+                    }
+                }
+
+                /// <summary>
                 /// Gets the DataMiner Agents found on the DataMiner System.
                 /// </summary>
                 /// <returns>The DataMiner Agents in the DataMiner System.</returns>
@@ -755,6 +808,34 @@ namespace Skyline.DataMiner
                     }
 
                     return dataMinerAgents;
+                }
+
+                /// <summary>
+                /// Retrieves the element with the specified element name.
+                /// </summary>
+                /// <param name = "elementName">The name of the element.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "elementName"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException"><paramref name = "elementName"/> is the empty string ("") or white space.</exception>
+                /// <exception cref = "ElementNotFoundException">The element was not found in the DataMiner System.</exception>
+                /// <returns>The element with the specified name.</returns>
+                public Skyline.DataMiner.Library.Common.IDmsElement GetElement(string elementName)
+                {
+                    if (elementName == null)
+                    {
+                        throw new System.ArgumentNullException("elementName");
+                    }
+
+                    if (System.String.IsNullOrWhiteSpace(elementName))
+                    {
+                        throw new System.ArgumentException("The element name is the empty string (\"\") or white space.", "elementName");
+                    }
+
+                    if (!ElementExists(elementName))
+                    {
+                        throw new Skyline.DataMiner.Library.Common.ElementNotFoundException(elementName);
+                    }
+
+                    return new Skyline.DataMiner.Library.Common.DmsElement(this, cachedElementInfoMessage);
                 }
 
                 /// <summary>
@@ -795,10 +876,69 @@ namespace Skyline.DataMiner
             }
 
             /// <summary>
+            /// Helper class to convert from enumeration value to string or vice versa.
+            /// </summary>
+            internal static class EnumMapper
+            {
+                /// <summary>
+                /// The connection type map.
+                /// </summary>
+                private static readonly System.Collections.Generic.Dictionary<System.String, Skyline.DataMiner.Library.Common.ConnectionType> ConnectionTypeMapping = new System.Collections.Generic.Dictionary<System.String, Skyline.DataMiner.Library.Common.ConnectionType>{{"SNMP", Skyline.DataMiner.Library.Common.ConnectionType.SnmpV1}, {"SNMPV1", Skyline.DataMiner.Library.Common.ConnectionType.SnmpV1}, {"SNMPV2", Skyline.DataMiner.Library.Common.ConnectionType.SnmpV2}, {"SNMPV3", Skyline.DataMiner.Library.Common.ConnectionType.SnmpV3}, {"SERIAL", Skyline.DataMiner.Library.Common.ConnectionType.Serial}, {"SERIAL SINGLE", Skyline.DataMiner.Library.Common.ConnectionType.SerialSingle}, {"SMART-SERIAL", Skyline.DataMiner.Library.Common.ConnectionType.SmartSerial}, {"SMART-SERIAL SINGLE", Skyline.DataMiner.Library.Common.ConnectionType.SmartSerialSingle}, {"HTTP", Skyline.DataMiner.Library.Common.ConnectionType.Http}, {"GPIB", Skyline.DataMiner.Library.Common.ConnectionType.Gpib}, {"VIRTUAL", Skyline.DataMiner.Library.Common.ConnectionType.Virtual}, {"OPC", Skyline.DataMiner.Library.Common.ConnectionType.Opc}, {"SLA", Skyline.DataMiner.Library.Common.ConnectionType.Sla}, {"WEBSOCKET", Skyline.DataMiner.Library.Common.ConnectionType.WebSocket}};
+                /// <summary>
+                /// Converts a string denoting a connection type to the corresponding value of the <see cref = "ConnectionType"/> enumeration.
+                /// </summary>
+                /// <param name = "type">The connection type.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "type"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException"><paramref name = "type"/> is the empty string ("") or white space</exception>
+                /// <exception cref = "KeyNotFoundException"></exception>
+                /// <returns>The corresponding <see cref = "ConnectionType"/> value.</returns>
+                internal static Skyline.DataMiner.Library.Common.ConnectionType ConvertStringToConnectionType(string type)
+                {
+                    if (type == null)
+                    {
+                        throw new System.ArgumentNullException("type");
+                    }
+
+                    if (System.String.IsNullOrWhiteSpace(type))
+                    {
+                        throw new System.ArgumentException("The type must not be empty.", "type");
+                    }
+
+                    string valueLower = type.ToUpperInvariant();
+                    Skyline.DataMiner.Library.Common.ConnectionType result;
+                    if (!ConnectionTypeMapping.TryGetValue(valueLower, out result))
+                    {
+                        throw new System.Collections.Generic.KeyNotFoundException(System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "The key {0} could not be found.", valueLower));
+                    }
+
+                    return result;
+                }
+            }
+
+            /// <summary>
             /// Class containing helper methods.
             /// </summary>
             internal static class HelperClass
             {
+                /// <summary>
+                /// Checks the element state and throws an exception if no operation is possible due to the current element state.
+                /// </summary>
+                /// <param name = "element">The element on which to check the state.</param>
+                /// <exception cref = "ElementNotFoundException">The element was not found in the DataMiner system.</exception>
+                /// <exception cref = "ElementStoppedException">The element is stopped.</exception>
+                internal static void CheckElementState(Skyline.DataMiner.Library.Common.IDmsElement element)
+                {
+                    if (element.State == Skyline.DataMiner.Library.Common.ElementState.Deleted)
+                    {
+                        throw new Skyline.DataMiner.Library.Common.ElementNotFoundException(System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Failed to perform an operation on the element: {0} because it has been deleted.", element.Name));
+                    }
+
+                    if (element.State == Skyline.DataMiner.Library.Common.ElementState.Stopped)
+                    {
+                        throw new Skyline.DataMiner.Library.Common.ElementStoppedException(System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Failed to perform an operation on the element: {0} because it has been stopped.", element.Name));
+                    }
+                }
+
                 /// <summary>
                 /// Determines if a connection is using a dedicated connection or not (e.g serial single, smart serial single).
                 /// </summary>
@@ -865,10 +1005,175 @@ namespace Skyline.DataMiner
                 }
 
                 /// <summary>
+                ///     Determines whether an element with the specified name exists in the DataMiner System.
+                /// </summary>
+                /// <param name = "elementName">The name of the element.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "elementName"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException"><paramref name = "elementName"/> is the empty string ("") or white space.</exception>
+                /// <returns><c>true</c> if the element exists; otherwise, <c>false</c>.</returns>
+                bool ElementExists(string elementName);
+                /// <summary>
                 ///     Gets the DataMiner Agents found in the DataMiner System.
                 /// </summary>
                 /// <returns>The DataMiner Agents in the DataMiner System.</returns>
                 System.Collections.Generic.ICollection<Skyline.DataMiner.Library.Common.IDma> GetAgents();
+                /// <summary>
+                ///     Retrieves the element with the specified element name.
+                /// </summary>
+                /// <param name = "elementName">The name of the element.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "elementName"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException"><paramref name = "elementName"/> is the empty string ("") or white space.</exception>
+                /// <exception cref = "ElementNotFoundException">No element with the specified name exists in the DataMiner system.</exception>
+                /// <returns>The element with the specified name.</returns>
+                Skyline.DataMiner.Library.Common.IDmsElement GetElement(string elementName);
+            }
+
+            /// <summary>
+            /// Contains methods for input validation.
+            /// </summary>
+            internal static class InputValidator
+            {
+                /// <summary>
+                /// Validates the name of an element, service, redundancy group, template or folder.
+                /// </summary>
+                /// <param name = "name">The element name.</param>
+                /// <param name = "parameterName">The name of the parameter that is passing the name.</param>
+                /// <exception cref = "ArgumentNullException">The value of a set operation is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException">The value of a set operation is empty or white space.</exception>
+                /// <exception cref = "ArgumentException">The value of a set operation exceeds 200 characters.</exception>
+                /// <exception cref = "ArgumentException">The value of a set operation contains a forbidden character.</exception>
+                /// <exception cref = "ArgumentException">The value of a set operation contains more than one '%' character.</exception>
+                /// <returns><c>true</c> if the name is valid; otherwise, <c>false</c>.</returns>
+                /// <remarks>Forbidden characters: '\', '/', ':', '*', '?', '"', '&lt;', '&gt;', '|', '°', ';'.</remarks>
+                public static string ValidateName(string name, string parameterName)
+                {
+                    if (name == null)
+                    {
+                        throw new System.ArgumentNullException("name");
+                    }
+
+                    if (parameterName == null)
+                    {
+                        throw new System.ArgumentNullException("parameterName");
+                    }
+
+                    if (System.String.IsNullOrWhiteSpace(name))
+                    {
+                        throw new System.ArgumentException("The name must not be null or white space.", parameterName);
+                    }
+
+                    string trimmedName = name.Trim();
+                    if (trimmedName.Length > 200)
+                    {
+                        throw new System.ArgumentException("The name must not exceed 200 characters.", parameterName);
+                    }
+
+                    // White space is trimmed.
+                    if (trimmedName[0].Equals('.'))
+                    {
+                        throw new System.ArgumentException("The name must not start with a dot ('.').", parameterName);
+                    }
+
+                    if (trimmedName[trimmedName.Length - 1].Equals('.'))
+                    {
+                        throw new System.ArgumentException("The name must not end with a dot ('.').", parameterName);
+                    }
+
+                    if (!System.Text.RegularExpressions.Regex.IsMatch(trimmedName, @"^[^/\\:;\*\?<>\|°""]+$"))
+                    {
+                        throw new System.ArgumentException("The name contains a forbidden character.", parameterName);
+                    }
+
+                    if (System.Linq.Enumerable.Count(trimmedName, x => x == '%') > 1)
+                    {
+                        throw new System.ArgumentException("The name must not contain more than one '%' characters.", parameterName);
+                    }
+
+                    return trimmedName;
+                }
+
+                /// <summary>
+                /// Validates the specified name for a view.
+                /// </summary>
+                /// <param name = "name">The view name.</param>
+                /// <param name = "parameterName">The name of the parameter to which the view name is passed.</param>
+                /// <exception cref = "ArgumentNullException">The value of a set operation is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException"><paramref name = "name"/> is invalid.</exception>
+                /// <exception cref = "ArgumentException">The value of a set operation exceeds 200 characters.</exception>
+                /// <exception cref = "ArgumentException">The value of a set operation contains a forbidden character.</exception>
+                /// <exception cref = "ArgumentException">The value of a set operation contains more than one '%' character.</exception>
+                /// <returns>The validated view name.</returns>
+                public static string ValidateViewName(string name, string parameterName)
+                {
+                    if (name == null)
+                    {
+                        throw new System.ArgumentNullException(parameterName);
+                    }
+
+                    if (System.String.IsNullOrWhiteSpace(name))
+                    {
+                        throw new System.ArgumentException("The name must not be null or white space.", parameterName);
+                    }
+
+                    string trimmedName = name.Trim();
+                    if (trimmedName.Length > 0)
+                    {
+                        if (trimmedName.Length > 200)
+                        {
+                            throw new System.ArgumentException("The name must not exceed 200 characters.", parameterName);
+                        }
+
+                        ValidateViewNameForbiddenCharacters(trimmedName, parameterName);
+                    }
+
+                    return trimmedName;
+                }
+
+                /// <summary>
+                /// Determines whether the specified template is compatible with the specified protocol.
+                /// </summary>
+                /// <param name = "template">The template.</param>
+                /// <param name = "protocol">The protocol.</param>
+                /// <returns><c>true</c> if the template is compatible with the protocol; otherwise, <c>false</c>.</returns>
+                public static bool IsCompatibleTemplate(Skyline.DataMiner.Library.Common.Templates.IDmsTemplate template, Skyline.DataMiner.Library.Common.IDmsProtocol protocol)
+                {
+                    bool isCompatible = true;
+                    if (template != null && (!template.Protocol.Name.Equals(protocol.Name, System.StringComparison.OrdinalIgnoreCase) || !template.Protocol.Version.Equals(protocol.Version, System.StringComparison.OrdinalIgnoreCase)))
+                    {
+                        isCompatible = false;
+                    }
+
+                    return isCompatible;
+                }
+
+                /// <summary>
+                /// Validates the specified name for a view for forbidden characters.
+                /// </summary>
+                /// <param name = "viewName">The view name.</param>
+                /// <param name = "parameterName">The name of the parameter to which the view name is passed.</param>
+                /// <exception cref = "ArgumentException"><paramref name = "viewName"/> is invalid.</exception>
+                private static void ValidateViewNameForbiddenCharacters(string viewName, string parameterName)
+                {
+                    if (viewName[0].Equals('.'))
+                    {
+                        throw new System.ArgumentException("The name must not start with a dot ('.').", parameterName);
+                    }
+
+                    if (viewName[viewName.Length - 1].Equals('.'))
+                    {
+                        throw new System.ArgumentException("The name must not end with a dot ('.').", parameterName);
+                    }
+
+                    if (System.Linq.Enumerable.Contains(viewName, '|'))
+                    {
+                        throw new System.ArgumentException("The name contains a forbidden character. (Forbidden characters: '|')", parameterName);
+                    }
+
+                    if (System.Linq.Enumerable.Count(viewName, x => x == '%') > 1)
+                    {
+                        throw new System.ArgumentException("The name must not contain more than one '%' characters.", parameterName);
+                    }
+                }
             }
 
             /// <summary>
@@ -1248,6 +1553,49 @@ namespace Skyline.DataMiner
             }
 
             /// <summary>
+            /// Defines methods to support the comparison of DataMiner views for equality.
+            /// </summary>
+            public class DmsViewEqualityComparer : System.Collections.Generic.EqualityComparer<Skyline.DataMiner.Library.Common.IDmsView>
+            {
+                /// <summary>
+                /// Determines whether the specified view objects are equal.
+                /// </summary>
+                /// <param name = "x">The first object to compare.</param>
+                /// <param name = "y">The second object to compare.</param>
+                /// <returns><c>true</c> if the specified views have the same ID; otherwise, <c>false</c>.</returns>
+                public override bool Equals(Skyline.DataMiner.Library.Common.IDmsView x, Skyline.DataMiner.Library.Common.IDmsView y)
+                {
+                    if (x == null && y == null)
+                    {
+                        return true;
+                    }
+
+                    if (x == null || y == null)
+                    {
+                        return false;
+                    }
+
+                    return x.Id == y.Id;
+                }
+
+                /// <summary>
+                /// Returns a hash code for the specified object.
+                /// </summary>
+                /// <param name = "obj">The object for which to get a hash code.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "obj"/> is <see langword = "null"/>.</exception>
+                /// <returns>A hash code for the specified object.</returns>
+                public override int GetHashCode(Skyline.DataMiner.Library.Common.IDmsView obj)
+                {
+                    if (obj == null)
+                    {
+                        throw new System.ArgumentNullException("obj");
+                    }
+
+                    return obj.Id.GetHashCode();
+                }
+            }
+
+            /// <summary>
             /// A collection of IElementConnection objects.
             /// </summary>
             public class ElementConnectionCollection : Skyline.DataMiner.Library.Common.IElementConnectionCollection
@@ -1467,6 +1815,64 @@ namespace Skyline.DataMiner
                 System.Collections.Generic.IEnumerable<Skyline.DataMiner.Library.Common.IElementConnection> Enumerator
                 {
                     get;
+                }
+            }
+
+            /// <summary>
+            /// Represents information about a connection.
+            /// </summary>
+            internal class DmsConnectionInfo : Skyline.DataMiner.Library.Common.IDmsConnectionInfo
+            {
+                /// <summary>
+                /// The name of the connection.
+                /// </summary>
+                private readonly string name;
+                /// <summary>
+                /// The connection type.
+                /// </summary>
+                private readonly Skyline.DataMiner.Library.Common.ConnectionType type;
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "DmsConnectionInfo"/> class.
+                /// </summary>
+                /// <param name = "name">The connection name.</param>
+                /// <param name = "type">The connection type.</param>
+                internal DmsConnectionInfo(string name, Skyline.DataMiner.Library.Common.ConnectionType type)
+                {
+                    this.name = name;
+                    this.type = type;
+                }
+
+                /// <summary>
+                /// Gets the connection name.
+                /// </summary>
+                /// <value>The connection name.</value>
+                public string Name
+                {
+                    get
+                    {
+                        return name;
+                    }
+                }
+
+                /// <summary>
+                /// Gets the connection type.
+                /// </summary>
+                /// <value>The connection type.</value>
+                public Skyline.DataMiner.Library.Common.ConnectionType Type
+                {
+                    get
+                    {
+                        return type;
+                    }
+                }
+
+                /// <summary>
+                /// Returns a string that represents the current object.
+                /// </summary>
+                /// <returns>A string that represents the current object.</returns>
+                public override string ToString()
+                {
+                    return System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Connection with Name:{0} and Type:{1}.", name, type);
                 }
             }
 
@@ -1837,6 +2243,69 @@ namespace Skyline.DataMiner
             }
 
             /// <summary>
+            /// The exception that is thrown when a requested alarm template was not found.
+            /// </summary>
+            [System.Serializable]
+            [Skyline.DataMiner.Library.Common.Attributes.DllImport("System.Runtime.Serialization.dll")]
+            public class AlarmTemplateNotFoundException : Skyline.DataMiner.Library.Common.TemplateNotFoundException
+            {
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "AlarmTemplateNotFoundException"/> class.
+                /// </summary>
+                public AlarmTemplateNotFoundException()
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "AlarmTemplateNotFoundException"/> class.
+                /// </summary>
+                /// <param name = "message">The error message that explains the reason for the exception.</param>
+                public AlarmTemplateNotFoundException(string message): base(message)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "AlarmTemplateNotFoundException"/> class with a specified error message and a reference to the inner exception that is the cause of this exception.
+                /// </summary>
+                /// <param name = "message">The error message that explains the reason for the exception.</param>
+                /// <param name = "innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+                public AlarmTemplateNotFoundException(string message, System.Exception innerException): base(message, innerException)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "AlarmTemplateNotFoundException"/> class.
+                /// </summary>
+                /// <param name = "templateName">The name of the template.</param>
+                /// <param name = "protocol">The protocol this template relates to.</param>
+                public AlarmTemplateNotFoundException(string templateName, Skyline.DataMiner.Library.Common.IDmsProtocol protocol): base(templateName, protocol)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "AlarmTemplateNotFoundException"/> class.
+                /// </summary>
+                /// <param name = "templateName">The name of the template.</param>
+                /// <param name = "protocolName">The name of the protocol.</param>
+                /// <param name = "protocolVersion">The version of the protocol.</param>
+                public AlarmTemplateNotFoundException(string templateName, string protocolName, string protocolVersion): base(templateName, protocolName, protocolVersion)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "AlarmTemplateNotFoundException"/> class with serialized data.
+                /// </summary>
+                /// <param name = "info">The serialization info.</param>
+                /// <param name = "context">The streaming context.</param>
+                /// <exception cref = "ArgumentNullException">The <paramref name = "info"/> parameter is <see langword = "null"/>.</exception>
+                /// <exception cref = "SerializationException">The class name is <see langword = "null"/> or HResult is zero (0).</exception>
+                /// <remarks>This constructor is called during deserialization to reconstitute the exception object transmitted over a stream.</remarks>
+                protected AlarmTemplateNotFoundException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context): base(info, context)
+                {
+                }
+            }
+
+            /// <summary>
             /// The exception that is thrown when an exception occurs in a DataMiner System.
             /// </summary>
             [System.Serializable]
@@ -1876,6 +2345,129 @@ namespace Skyline.DataMiner
                 /// <exception cref = "SerializationException">The class name is <see langword = "null"/> or HResult is zero (0).</exception>
                 /// <remarks>This constructor is called during deserialization to reconstitute the exception object transmitted over a stream.</remarks>
                 protected DmsException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context): base(info, context)
+                {
+                }
+            }
+
+            /// <summary>
+            /// The exception that is thrown when performing actions on an element that was not found.
+            /// </summary>
+            [System.Serializable]
+            [Skyline.DataMiner.Library.Common.Attributes.DllImport("System.Runtime.Serialization.dll")]
+            public class ElementNotFoundException : Skyline.DataMiner.Library.Common.DmsException
+            {
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ElementNotFoundException"/> class.
+                /// </summary>
+                public ElementNotFoundException()
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ElementNotFoundException"/> class.
+                /// </summary>
+                /// <param name = "dmsElementId">The DataMiner Agent ID/element ID of the element that was not found.</param>
+                public ElementNotFoundException(Skyline.DataMiner.Library.Common.DmsElementId dmsElementId): base(System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Element with DMA ID '{0}' and element ID '{1}' was not found.", dmsElementId.AgentId, dmsElementId.ElementId))
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ElementNotFoundException"/> class.
+                /// </summary>
+                /// <param name = "dmaId">The ID of the DataMiner Agent that was not found.</param>
+                /// <param name = "elementId">The ID of the element that was not found.</param>
+                public ElementNotFoundException(int dmaId, int elementId): base(System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Element with DMA ID '{0}' and element ID '{1}' was not found.", dmaId, elementId))
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ElementNotFoundException"/> class.
+                /// </summary>
+                /// <param name = "message">The error message that explains the reason for the exception.</param>
+                public ElementNotFoundException(string message): base(message)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ElementNotFoundException"/> class with a specified error message and a reference to the inner exception that is the cause of this exception.
+                /// </summary>
+                /// <param name = "message">The error message that explains the reason for the exception.</param>
+                /// <param name = "innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+                public ElementNotFoundException(string message, System.Exception innerException): base(message, innerException)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ElementNotFoundException"/> class with a specified error message and a reference to the inner exception that is the cause of this exception.
+                /// </summary>
+                /// <param name = "dmsElementId">The DataMiner Agent ID/element ID of the element that was not found.</param>
+                /// <param name = "innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+                public ElementNotFoundException(Skyline.DataMiner.Library.Common.DmsElementId dmsElementId, System.Exception innerException): base(System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Element with DMA ID '{0}' and element ID '{1}' was not found.", dmsElementId.AgentId, dmsElementId.ElementId), innerException)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ElementNotFoundException"/> class with serialized data.
+                /// </summary>
+                /// <param name = "info">The serialization info.</param>
+                /// <param name = "context">The streaming context.</param>
+                /// <exception cref = "ArgumentNullException">The <paramref name = "info"/> parameter is <see langword = "null"/>.</exception>
+                /// <exception cref = "SerializationException">The class name is <see langword = "null"/> or HResult is zero (0).</exception>
+                /// <remarks>This constructor is called during deserialization to reconstitute the exception object transmitted over a stream.</remarks>
+                protected ElementNotFoundException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context): base(info, context)
+                {
+                }
+            }
+
+            /// <summary>
+            /// The exception that is thrown when an operation is performed on a stopped element.
+            /// </summary>
+            [System.Serializable]
+            [Skyline.DataMiner.Library.Common.Attributes.DllImport("System.Runtime.Serialization.dll")]
+            public class ElementStoppedException : Skyline.DataMiner.Library.Common.DmsException
+            {
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ElementStoppedException"/> class.
+                /// </summary>
+                public ElementStoppedException()
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ElementStoppedException"/> class.
+                /// </summary>
+                /// <param name = "message">The error message that explains the reason for the exception.</param>
+                public ElementStoppedException(string message): base(message)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ElementStoppedException"/> class with a specified error message and a reference to the inner exception that is the cause of this exception.
+                /// </summary>
+                /// <param name = "dmsElementId">The ID of the element.</param>
+                /// <param name = "innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+                public ElementStoppedException(Skyline.DataMiner.Library.Common.DmsElementId dmsElementId, System.Exception innerException): base(System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "The element with ID '{0}' is stopped.", dmsElementId.Value), innerException)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ElementStoppedException"/> class with a specified error message and a reference to the inner exception that is the cause of this exception.
+                /// </summary>
+                /// <param name = "message">The error message that explains the reason for the exception.</param>
+                /// <param name = "innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+                public ElementStoppedException(string message, System.Exception innerException): base(message, innerException)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ElementStoppedException"/> class with serialized data.
+                /// </summary>
+                /// <param name = "info">The serialization info.</param>
+                /// <param name = "context">The streaming context.</param>
+                /// <exception cref = "ArgumentNullException">The <paramref name = "info"/> parameter is <see langword = "null"/>.</exception>
+                /// <exception cref = "SerializationException">The class name is <see langword = "null"/> or HResult is zero (0).</exception>
+                /// <remarks>This constructor is called during deserialization to reconstitute the exception object transmitted over a stream.</remarks>
+                protected ElementStoppedException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context): base(info, context)
                 {
                 }
             }
@@ -1925,6 +2517,278 @@ namespace Skyline.DataMiner
             }
 
             /// <summary>
+            /// The exception that is thrown when an action is performed on a DataMiner element parameter that was not found.
+            /// </summary>
+            [System.Serializable]
+            [Skyline.DataMiner.Library.Common.Attributes.DllImport("System.Runtime.Serialization.dll")]
+            public class ParameterNotFoundException : Skyline.DataMiner.Library.Common.DmsException
+            {
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ParameterNotFoundException"/> class.
+                /// </summary>
+                public ParameterNotFoundException()
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ParameterNotFoundException"/> class with a specified DataMiner element parameter ID.
+                /// </summary>
+                /// <param name = "id">The ID of the DataMiner Agent that was not found.</param>
+                /// <param name = "dmsElementId">The DataMiner Agent ID/element ID of the element the parameter belongs to.</param>
+                public ParameterNotFoundException(int id, Skyline.DataMiner.Library.Common.DmsElementId dmsElementId): base(System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "The parameter with ID '{0}' was not found on the element with agent ID '{1}' and element ID '{2}'.", id, dmsElementId.AgentId, dmsElementId.ElementId))
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ParameterNotFoundException"/> class with a specified error message.
+                /// </summary>
+                /// <param name = "message">The error message that explains the reason for the exception.</param>
+                public ParameterNotFoundException(string message): base(message)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ParameterNotFoundException"/> class with a specified error message and a reference to the inner exception that is the cause of this exception.
+                /// </summary>
+                /// <param name = "message">The error message that explains the reason for the exception.</param>
+                /// <param name = "innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+                public ParameterNotFoundException(string message, System.Exception innerException): base(message, innerException)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ParameterNotFoundException"/> class with a specified DataMiner element parameter ID.
+                /// </summary>
+                /// <param name = "id">The ID of the DataMiner agent that was not found.</param>
+                /// <param name = "dmsElementId">The DataMiner agent ID/element ID of the element the parameter belongs to.</param>
+                /// <param name = "innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+                public ParameterNotFoundException(int id, Skyline.DataMiner.Library.Common.DmsElementId dmsElementId, System.Exception innerException): base(System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "The parameter with ID '{0}' was not found on the element with agent ID '{1}' and element ID '{2}'.", id, dmsElementId.AgentId, dmsElementId.ElementId), innerException)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ParameterNotFoundException"/> class with serialized data.
+                /// </summary>
+                /// <param name = "info">The serialization info.</param>
+                /// <param name = "context">The streaming context.</param>
+                /// <exception cref = "ArgumentNullException">The <paramref name = "info"/> parameter is <see langword = "null"/>.</exception>
+                /// <exception cref = "SerializationException">The class name is <see langword = "null"/> or HResult is zero (0).</exception>
+                /// <remarks>This constructor is called during deserialization to reconstitute the exception object transmitted over a stream.</remarks>
+                protected ParameterNotFoundException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context): base(info, context)
+                {
+                }
+            }
+
+            /// <summary>
+            /// The exception that is thrown when a requested protocol was not found.
+            /// </summary>
+            [System.Serializable]
+            [Skyline.DataMiner.Library.Common.Attributes.DllImport("System.Runtime.Serialization.dll")]
+            public class ProtocolNotFoundException : Skyline.DataMiner.Library.Common.DmsException
+            {
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ProtocolNotFoundException"/> class.
+                /// </summary>
+                public ProtocolNotFoundException()
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ProtocolNotFoundException"/> class.
+                /// </summary>
+                /// <param name = "protocolName">The name of the protocol.</param>
+                /// <param name = "protocolVersion">The version of the protocol.</param>
+                public ProtocolNotFoundException(string protocolName, string protocolVersion): base(System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Protocol with name '{0}' and version '{1}' was not found.", protocolName, protocolVersion))
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ProtocolNotFoundException"/> class.
+                /// </summary>
+                /// <param name = "message">The error message that explains the reason for the exception.</param>
+                public ProtocolNotFoundException(string message): base(message)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ProtocolNotFoundException"/> class.
+                /// </summary>
+                /// <param name = "protocolName">The name of the protocol.</param>
+                /// <param name = "protocolVersion">The version of the protocol.</param>
+                /// <param name = "innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+                public ProtocolNotFoundException(string protocolName, string protocolVersion, System.Exception innerException): base(System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Protocol with name '{0}' and version '{1}' was not found.", protocolName, protocolVersion), innerException)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ProtocolNotFoundException"/> class with a specified error message and a reference to the inner exception that is the cause of this exception.
+                /// </summary>
+                /// <param name = "message">The error message that explains the reason for the exception.</param>
+                /// <param name = "innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+                public ProtocolNotFoundException(string message, System.Exception innerException): base(message, innerException)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ProtocolNotFoundException"/> class with serialized data.
+                /// </summary>
+                /// <param name = "info">The serialization info.</param>
+                /// <param name = "context">The streaming context.</param>
+                /// <exception cref = "ArgumentNullException">The <paramref name = "info"/> parameter is <see langword = "null"/>.</exception>
+                /// <exception cref = "SerializationException">The class name is <see langword = "null"/> or HResult is zero (0).</exception>
+                /// <remarks>This constructor is called during deserialization to reconstitute the exception object transmitted over a stream.</remarks>
+                protected ProtocolNotFoundException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context): base(info, context)
+                {
+                }
+            }
+
+            /// <summary>
+            /// The exception that is thrown when a requested template was not found.
+            /// </summary>
+            [System.Serializable]
+            [Skyline.DataMiner.Library.Common.Attributes.DllImport("System.Runtime.Serialization.dll")]
+            public class TemplateNotFoundException : Skyline.DataMiner.Library.Common.DmsException
+            {
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "TemplateNotFoundException"/> class.
+                /// </summary>
+                public TemplateNotFoundException()
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "TemplateNotFoundException"/> class.
+                /// </summary>
+                /// <param name = "templateName">The name of the template.</param>
+                /// <param name = "protocol">The protocol this template relates to.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "protocol"/> is <see langword = "null"/>.</exception>
+                public TemplateNotFoundException(string templateName, Skyline.DataMiner.Library.Common.IDmsProtocol protocol): base(BuildMessageString(templateName, protocol))
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "TemplateNotFoundException"/> class.
+                /// </summary>
+                /// <param name = "templateName">The name of the template.</param>
+                /// <param name = "protocolName">The name of the protocol.</param>
+                /// <param name = "protocolVersion">The version of the protocol.</param>
+                public TemplateNotFoundException(string templateName, string protocolName, string protocolVersion): base(System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Template \"{0}\" for protocol \"{1}\" version \"{2}\" was not found.", templateName, protocolName, protocolVersion))
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "TemplateNotFoundException"/> class.
+                /// </summary>
+                /// <param name = "message">The error message that explains the reason for the exception.</param>
+                public TemplateNotFoundException(string message): base(message)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "TemplateNotFoundException"/> class.
+                /// </summary>
+                /// <param name = "templateName">The name of the template.</param>
+                /// <param name = "protocolName">The name of the protocol.</param>
+                /// <param name = "protocolVersion">The version of the protocol.</param>
+                /// <param name = "innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+                public TemplateNotFoundException(string templateName, string protocolName, string protocolVersion, System.Exception innerException): base(System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Template \"{0}\" for protocol \"{1}\" version \"{2}\" was not found.", templateName, protocolName, protocolVersion), innerException)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "TemplateNotFoundException"/> class with a specified error message and a reference to the inner exception that is the cause of this exception.
+                /// </summary>
+                /// <param name = "message">The error message that explains the reason for the exception.</param>
+                /// <param name = "innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+                public TemplateNotFoundException(string message, System.Exception innerException): base(message, innerException)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "TemplateNotFoundException"/> class with serialized data.
+                /// </summary>
+                /// <param name = "info">The serialization info.</param>
+                /// <param name = "context">The streaming context.</param>
+                /// <exception cref = "ArgumentNullException">The <paramref name = "info"/> parameter is <see langword = "null"/>.</exception>
+                /// <exception cref = "SerializationException">The class name is <see langword = "null"/> or HResult is zero (0).</exception>
+                /// <remarks>This constructor is called during deserialization to reconstitute the exception object transmitted over a stream.</remarks>
+                protected TemplateNotFoundException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context): base(info, context)
+                {
+                }
+
+                private static string BuildMessageString(string templateName, Skyline.DataMiner.Library.Common.IDmsProtocol protocol)
+                {
+                    if (protocol == null)
+                    {
+                        throw new System.ArgumentNullException("protocol");
+                    }
+
+                    return System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Template \"{0}\" for protocol \"{1}\" version \"{2}\" was not found.", templateName, protocol.Name, protocol.Version);
+                }
+            }
+
+            /// <summary>
+            /// The exception that is thrown when performing actions on a view that was not found.
+            /// </summary>
+            [System.Serializable]
+            [Skyline.DataMiner.Library.Common.Attributes.DllImport("System.Runtime.Serialization.dll")]
+            public class ViewNotFoundException : Skyline.DataMiner.Library.Common.DmsException
+            {
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ViewNotFoundException"/> class.
+                /// </summary>
+                public ViewNotFoundException()
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ViewNotFoundException"/> class.
+                /// </summary>
+                /// <param name = "viewId">The ID of the view that was not found.</param>
+                public ViewNotFoundException(int viewId): base(System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "View with ID '{0}' was not found.", viewId))
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ViewNotFoundException"/> class.
+                /// </summary>
+                /// <param name = "viewId">The ID of the view that was not found.</param>
+                /// <param name = "innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+                public ViewNotFoundException(int viewId, System.Exception innerException): base(System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "View with ID '{0}' was not found.", viewId), innerException)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ViewNotFoundException"/> class.
+                /// </summary>
+                /// <param name = "message">The error message that explains the reason for the exception.</param>
+                public ViewNotFoundException(string message): base(message)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ViewNotFoundException"/> class with a specified error message and a reference to the inner exception that is the cause of this exception.
+                /// </summary>
+                /// <param name = "message">The error message that explains the reason for the exception.</param>
+                /// <param name = "innerException">The exception that is the cause of the current exception, or a null reference if no inner exception is specified.</param>
+                public ViewNotFoundException(string message, System.Exception innerException): base(message, innerException)
+                {
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ViewNotFoundException"/> class with serialized data.
+                /// </summary>
+                /// <param name = "info">The serialization info.</param>
+                /// <param name = "context">The streaming context.</param>
+                /// <exception cref = "ArgumentNullException">The <paramref name = "info"/> parameter is <see langword = "null"/>.</exception>
+                /// <exception cref = "SerializationException">The class name is <see langword = "null"/> or HResult is zero (0).</exception>
+                /// <remarks>This constructor is called during deserialization to reconstitute the exception object transmitted over a stream.</remarks>
+                protected ViewNotFoundException(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context): base(info, context)
+                {
+                }
+            }
+
+            /// <summary>
             /// Represents the parent for every type of object that can be present on a DataMiner system.
             /// </summary>
             internal abstract class DmsObject
@@ -1933,6 +2797,10 @@ namespace Skyline.DataMiner
                 /// The DataMiner system the object belongs to.
                 /// </summary>
                 protected readonly Skyline.DataMiner.Library.Common.IDms dms;
+                /// <summary>
+                /// List containing all of the properties that were changed.
+                /// </summary>
+                private readonly System.Collections.Generic.List<System.String> changedPropertyList = new System.Collections.Generic.List<System.String>();
                 /// <summary>
                 /// Flag stating whether the DataMiner system object has been loaded.
                 /// </summary>
@@ -1959,6 +2827,28 @@ namespace Skyline.DataMiner
                     get
                     {
                         return dms;
+                    }
+                }
+
+                /// <summary>
+                /// Gets the list containing all of the names of the properties that are changed.
+                /// </summary>
+                internal System.Collections.Generic.List<System.String> ChangedPropertyList
+                {
+                    get
+                    {
+                        return changedPropertyList;
+                    }
+                }
+
+                /// <summary>
+                /// Gets the communication object.
+                /// </summary>
+                internal Skyline.DataMiner.Library.Common.ICommunication Communication
+                {
+                    get
+                    {
+                        return dms.Communication;
                     }
                 }
 
@@ -2000,6 +2890,961 @@ namespace Skyline.DataMiner
             /// </summary>
             public interface IDmsObject
             {
+            }
+
+            /// <summary>
+            /// Represents a DataMiner element.
+            /// </summary>
+            internal class DmsElement : Skyline.DataMiner.Library.Common.DmsObject, Skyline.DataMiner.Library.Common.IDmsElement
+            {
+                /// <summary>
+                ///     Contains the properties for the element.
+                /// </summary>
+                private readonly System.Collections.Generic.IDictionary<System.String, Skyline.DataMiner.Library.Common.Properties.DmsElementProperty> properties = new System.Collections.Generic.Dictionary<System.String, Skyline.DataMiner.Library.Common.Properties.DmsElementProperty>();
+                /// <summary>
+                ///     This list will be used to keep track of which views were assigned / removed during the life time of the element.
+                /// </summary>
+                private readonly System.Collections.Generic.List<System.Int32> registeredViewIds = new System.Collections.Generic.List<System.Int32>();
+                /// <summary>
+                ///     A set of all updated properties.
+                /// </summary>
+                private readonly System.Collections.Generic.HashSet<System.String> updatedProperties = new System.Collections.Generic.HashSet<System.String>();
+                /// <summary>
+                ///     Array of views where the element is contained in.
+                /// </summary>
+                private readonly System.Collections.Generic.ISet<Skyline.DataMiner.Library.Common.IDmsView> views = new Skyline.DataMiner.Library.Common.DmsViewSet();
+                /// <summary>
+                ///     The advanced settings.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.AdvancedSettings advancedSettings;
+                /// <summary>
+                ///     The device settings.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.DeviceSettings deviceSettings;
+                /// <summary>
+                ///     The DVE settings.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.DveSettings dveSettings;
+                /// <summary>
+                ///     Collection of connections available on the element.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.IElementConnectionCollection elementCommunicationConnections;
+                // Keep this message in case we need to parse the element properties when the user wants to use these.
+                private Skyline.DataMiner.Net.Messages.ElementInfoEventMessage elementInfo;
+                /// <summary>
+                ///     The failover settings.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.FailoverSettings failoverSettings;
+                /// <summary>
+                ///     The general settings.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.GeneralSettings generalSettings;
+                /// <summary>
+                ///     Specifies whether the properties of the elementInfo object have been parsed into dedicated objects.
+                /// </summary>
+                private bool propertiesLoaded;
+                /// <summary>
+                ///     The redundancy settings.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.RedundancySettings redundancySettings;
+                /// <summary>
+                ///     The replication settings.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.ReplicationSettings replicationSettings;
+                /// <summary>
+                ///     The element components.
+                /// </summary>
+                private System.Collections.Generic.IList<Skyline.DataMiner.Library.Common.ElementSettings> settings;
+                /// <summary>
+                ///     Specifies whether the views have been loaded.
+                /// </summary>
+                private bool viewsLoaded;
+                /// <summary>
+                ///     Initializes a new instance of the <see cref = "DmsElement"/> class.
+                /// </summary>
+                /// <param name = "dms">Object implementing <see cref = "IDms"/> interface.</param>
+                /// <param name = "dmsElementId">The system-wide element ID.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "dms"/> is <see langword = "null"/>.</exception>
+                internal DmsElement(Skyline.DataMiner.Library.Common.IDms dms, Skyline.DataMiner.Library.Common.DmsElementId dmsElementId): base(dms)
+                {
+                    this.Initialize();
+                    this.generalSettings.DmsElementId = dmsElementId;
+                }
+
+                /// <summary>
+                ///     Initializes a new instance of the <see cref = "DmsElement"/> class.
+                /// </summary>
+                /// <param name = "dms">Object implementing the <see cref = "IDms"/> interface.</param>
+                /// <param name = "elementInfo">The element information.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "dms"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentNullException"><paramref name = "elementInfo"/> is <see langword = "null"/>.</exception>
+                internal DmsElement(Skyline.DataMiner.Library.Common.IDms dms, Skyline.DataMiner.Net.Messages.ElementInfoEventMessage elementInfo): base(dms)
+                {
+                    if (elementInfo == null)
+                    {
+                        throw new System.ArgumentNullException("elementInfo");
+                    }
+
+                    this.Initialize(elementInfo);
+                    this.Parse(elementInfo);
+                }
+
+                /// <summary>
+                ///     Gets the advanced settings of this element.
+                /// </summary>
+                /// <value>The advanced settings of this element.</value>
+                public Skyline.DataMiner.Library.Common.IAdvancedSettings AdvancedSettings
+                {
+                    get
+                    {
+                        return this.advancedSettings;
+                    }
+                }
+
+                /// <summary>
+                ///     Gets the DataMiner Agent ID.
+                /// </summary>
+                /// <value>The DataMiner Agent ID.</value>
+                public int AgentId
+                {
+                    get
+                    {
+                        return this.generalSettings.DmsElementId.AgentId;
+                    }
+                }
+
+                /// <summary>
+                ///     Gets or sets the alarm template assigned to this element.
+                /// </summary>
+                /// <value>The alarm template assigned to this element.</value>
+                /// <exception cref = "ArgumentException">
+                ///     The specified alarm template is not compatible with the protocol this element
+                ///     executes.
+                /// </exception>
+                public Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplate AlarmTemplate
+                {
+                    get
+                    {
+                        return this.generalSettings.AlarmTemplate;
+                    }
+
+                    set
+                    {
+                        if (!Skyline.DataMiner.Library.Common.InputValidator.IsCompatibleTemplate(value, this.Protocol))
+                        {
+                            throw new System.ArgumentException("The specified alarm template is not compatible with the protocol this element executes.", "value");
+                        }
+
+                        this.generalSettings.AlarmTemplate = value;
+                    }
+                }
+
+                /// <summary>
+                ///     Gets or sets the available connections on the element.
+                /// </summary>
+                public Skyline.DataMiner.Library.Common.IElementConnectionCollection Connections
+                {
+                    get
+                    {
+                        return this.elementCommunicationConnections;
+                    }
+
+                    set
+                    {
+                        this.elementCommunicationConnections = value;
+                    }
+                }
+
+                /// <summary>
+                ///     Gets or sets the element description.
+                /// </summary>
+                /// <value>The element description.</value>
+                public string Description
+                {
+                    get
+                    {
+                        return this.GeneralSettings.Description;
+                    }
+
+                    set
+                    {
+                        this.GeneralSettings.Description = value;
+                    }
+                }
+
+                /// <summary>
+                ///     Gets the system-wide element ID of the element.
+                /// </summary>
+                /// <value>The system-wide element ID of the element.</value>
+                public Skyline.DataMiner.Library.Common.DmsElementId DmsElementId
+                {
+                    get
+                    {
+                        return this.generalSettings.DmsElementId;
+                    }
+                }
+
+                /// <summary>
+                ///     Gets the DVE settings of this element.
+                /// </summary>
+                /// <value>The DVE settings of this element.</value>
+                public Skyline.DataMiner.Library.Common.IDveSettings DveSettings
+                {
+                    get
+                    {
+                        return this.dveSettings;
+                    }
+                }
+
+                /// <summary>
+                ///     Gets the failover settings of this element.
+                /// </summary>
+                /// <value>The failover settings of this element.</value>
+                public Skyline.DataMiner.Library.Common.IFailoverSettings FailoverSettings
+                {
+                    get
+                    {
+                        return this.failoverSettings;
+                    }
+                }
+
+                /// <summary>
+                ///     Gets the DataMiner Agent that hosts this element.
+                /// </summary>
+                /// <value>The DataMiner Agent that hosts this element.</value>
+                public Skyline.DataMiner.Library.Common.IDma Host
+                {
+                    get
+                    {
+                        return this.generalSettings.Host;
+                    }
+                }
+
+                /// <summary>
+                ///     Gets the element ID.
+                /// </summary>
+                /// <value>The element ID.</value>
+                public int Id
+                {
+                    get
+                    {
+                        return this.generalSettings.DmsElementId.ElementId;
+                    }
+                }
+
+                /// <summary>
+                ///     Gets or sets the element name.
+                /// </summary>
+                /// <value>The element name.</value>
+                /// <exception cref = "ArgumentNullException">The value of a set operation is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException">The value of a set operation is empty or white space.</exception>
+                /// <exception cref = "ArgumentException">The value of a set operation exceeds 200 characters.</exception>
+                /// <exception cref = "ArgumentException">The value of a set operation contains a forbidden character.</exception>
+                /// <exception cref = "ArgumentException">The value of a set operation contains more than one '%' character.</exception>
+                /// <exception cref = "NotSupportedException">A set operation is not supported on a DVE child or a derived element.</exception>
+                /// <remarks>
+                ///     <para>The following restrictions apply to element names:</para>
+                ///     <list type = "bullet">
+                ///         <item>
+                ///             <para>Names may not start or end with the following characters: '.' (dot), ' ' (space).</para>
+                ///         </item>
+                ///         <item>
+                ///             <para>
+                ///                 Names may not contain the following characters: '\', '/', ':', '*', '?', '"', '&lt;', '&gt;', '|',
+                ///                 '°', ';'.
+                ///             </para>
+                ///         </item>
+                ///         <item>
+                ///             <para>The following characters may not occur more than once within a name: '%' (percentage).</para>
+                ///         </item>
+                ///     </list>
+                /// </remarks>
+                public string Name
+                {
+                    get
+                    {
+                        return this.generalSettings.Name;
+                    }
+
+                    set
+                    {
+                        this.generalSettings.Name = Skyline.DataMiner.Library.Common.InputValidator.ValidateName(value, "value");
+                    }
+                }
+
+                /// <summary>
+                ///     Gets the properties of this element.
+                /// </summary>
+                /// <value>The element properties.</value>
+                public Skyline.DataMiner.Library.Common.IPropertyCollection<Skyline.DataMiner.Library.Common.Properties.IDmsElementProperty, Skyline.DataMiner.Library.Common.Properties.IDmsElementPropertyDefinition> Properties
+                {
+                    get
+                    {
+                        this.LoadOnDemand();
+                        // Parse properties using definitions from Dms.
+                        if (!this.propertiesLoaded)
+                        {
+                            this.ParseElementProperties();
+                        }
+
+                        System.Collections.Generic.IDictionary<System.String, Skyline.DataMiner.Library.Common.Properties.IDmsElementProperty> copy = new System.Collections.Generic.Dictionary<System.String, Skyline.DataMiner.Library.Common.Properties.IDmsElementProperty>(this.properties.Count);
+                        foreach (var kvp in this.properties)
+                        {
+                            copy.Add(kvp.Key, kvp.Value);
+                        }
+
+                        return new Skyline.DataMiner.Library.Common.PropertyCollection<Skyline.DataMiner.Library.Common.Properties.IDmsElementProperty, Skyline.DataMiner.Library.Common.Properties.IDmsElementPropertyDefinition>(copy);
+                    }
+                }
+
+                /// <summary>
+                ///     Gets the protocol executed by this element.
+                /// </summary>
+                /// <value>The protocol executed by this element.</value>
+                public Skyline.DataMiner.Library.Common.IDmsProtocol Protocol
+                {
+                    get
+                    {
+                        return this.generalSettings.Protocol;
+                    }
+                }
+
+                /// <summary>
+                ///     Gets the redundancy settings.
+                /// </summary>
+                /// <value>The redundancy settings.</value>
+                public Skyline.DataMiner.Library.Common.IRedundancySettings RedundancySettings
+                {
+                    get
+                    {
+                        return this.redundancySettings;
+                    }
+                }
+
+                /// <summary>
+                ///     Gets the replication settings.
+                /// </summary>
+                /// <value>The replication settings.</value>
+                public Skyline.DataMiner.Library.Common.IReplicationSettings ReplicationSettings
+                {
+                    get
+                    {
+                        return this.replicationSettings;
+                    }
+                }
+
+                /// <summary>
+                /// Gets the spectrum component of this element.
+                /// </summary>
+                public Skyline.DataMiner.Library.Common.IDmsSpectrumAnalyzer SpectrumAnalyzer
+                {
+                    get
+                    {
+                        return new Skyline.DataMiner.Library.Common.DmsSpectrumAnalyzer(this);
+                    }
+                }
+
+                /// <summary>
+                ///     Gets the element state.
+                /// </summary>
+                /// <value>The element state.</value>
+                public Skyline.DataMiner.Library.Common.ElementState State
+                {
+                    get
+                    {
+                        return this.GeneralSettings.State;
+                    }
+
+                    internal set
+                    {
+                        this.GeneralSettings.State = value;
+                    }
+                }
+
+                /// <summary>
+                ///     Gets or sets the trend template that is assigned to this element.
+                /// </summary>
+                /// <value>The trend template that is assigned to this element.</value>
+                /// <exception cref = "ArgumentException">
+                ///     The specified trend template is not compatible with the protocol this element
+                ///     executes.
+                /// </exception>
+                public Skyline.DataMiner.Library.Common.Templates.IDmsTrendTemplate TrendTemplate
+                {
+                    get
+                    {
+                        return this.generalSettings.TrendTemplate;
+                    }
+
+                    set
+                    {
+                        if (!Skyline.DataMiner.Library.Common.InputValidator.IsCompatibleTemplate(value, this.Protocol))
+                        {
+                            throw new System.ArgumentException("The specified trend template is not compatible with the protocol this element executes.", "value");
+                        }
+
+                        this.generalSettings.TrendTemplate = value;
+                    }
+                }
+
+                /// <summary>
+                ///     Gets the type of the element.
+                /// </summary>
+                /// <value>The element type.</value>
+                public string Type
+                {
+                    get
+                    {
+                        return this.deviceSettings.Type;
+                    }
+                }
+
+                /// <summary>
+                ///     Gets the views the element is part of.
+                /// </summary>
+                /// <value>The views the element is part of.</value>
+                /// <exception cref = "ArgumentNullException">The value of a set operation is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException">The value of a set operation is an empty collection.</exception>
+                public System.Collections.Generic.ISet<Skyline.DataMiner.Library.Common.IDmsView> Views
+                {
+                    get
+                    {
+                        if (!this.viewsLoaded)
+                        {
+                            this.LoadViews();
+                        }
+
+                        return this.views;
+                    }
+                }
+
+                /// <summary>
+                ///     Gets the general settings of the element.
+                /// </summary>
+                internal Skyline.DataMiner.Library.Common.GeneralSettings GeneralSettings
+                {
+                    get
+                    {
+                        return this.generalSettings;
+                    }
+                }
+
+                /// <summary>
+                ///     Gets the specified table.
+                /// </summary>
+                /// <param name = "tableId">The table parameter ID.</param>
+                /// <exception cref = "ArgumentException"><paramref name = "tableId"/> is invalid.</exception>
+                /// <exception cref = "ElementNotFoundException">The element was not found in the DataMiner System.</exception>
+                /// <exception cref = "ElementStoppedException">The element is stopped.</exception>
+                /// <returns>The table that corresponds with the specified ID.</returns>
+                public Skyline.DataMiner.Library.Common.IDmsTable GetTable(int tableId)
+                {
+                    Skyline.DataMiner.Library.Common.HelperClass.CheckElementState(this);
+                    if (tableId < 1)
+                    {
+                        throw new System.ArgumentException("Invalid table ID.", "tableId");
+                    }
+
+                    return new Skyline.DataMiner.Library.Common.DmsTable(this, tableId);
+                }
+
+                /// <summary>
+                ///     Returns a string that represents the current object.
+                /// </summary>
+                /// <returns>A string that represents the current object.</returns>
+                public override string ToString()
+                {
+                    var sb = new System.Text.StringBuilder();
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Name: {0}{1}", this.Name, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "agent ID/element ID: {0}{1}", this.DmsElementId.Value, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Description: {0}{1}", this.Description, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Protocol name: {0}{1}", this.Protocol.Name, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Protocol version: {0}{1}", this.Protocol.Version, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Hosting agent ID: {0}{1}", this.Host.Id, System.Environment.NewLine);
+                    return sb.ToString();
+                }
+
+                /// <summary>
+                ///     Loads all the data and properties found related to the element.
+                /// </summary>
+                /// <exception cref = "ElementNotFoundException">The element was not found in the DataMiner system.</exception>
+                internal override void Load()
+                {
+                    try
+                    {
+                        this.IsLoaded = true;
+                        var message = new Skyline.DataMiner.Net.Messages.GetElementByIDMessage(this.generalSettings.DmsElementId.AgentId, this.generalSettings.DmsElementId.ElementId);
+                        var response = (Skyline.DataMiner.Net.Messages.ElementInfoEventMessage)this.Communication.SendSingleResponseMessage(message);
+                        this.elementCommunicationConnections = new Skyline.DataMiner.Library.Common.ElementConnectionCollection(response);
+                        this.Parse(response);
+                    }
+                    catch (Skyline.DataMiner.Net.Exceptions.DataMinerException e)
+                    {
+                        if (e.ErrorCode == -2146233088)
+                        {
+                            // 0x80131500, Element "[element ID]" is unavailable.
+                            throw new Skyline.DataMiner.Library.Common.ElementNotFoundException(this.DmsElementId, e);
+                        }
+
+                        throw;
+                    }
+                }
+
+                /// <summary>
+                ///     Loads all the views where this element is included.
+                /// </summary>
+                internal void LoadViews()
+                {
+                    var message = new Skyline.DataMiner.Net.Messages.GetViewsForElementMessage{DataMinerID = this.generalSettings.DmsElementId.AgentId, ElementID = this.generalSettings.DmsElementId.ElementId};
+                    var response = (Skyline.DataMiner.Net.Messages.GetViewsForElementResponse)this.Communication.SendSingleResponseMessage(message);
+                    this.views.Clear();
+                    this.registeredViewIds.Clear();
+                    foreach (Skyline.DataMiner.Net.Messages.DataMinerObjectInfo info in response.Views)
+                    {
+                        var view = new Skyline.DataMiner.Library.Common.DmsView(this.dms, info.ID, info.Name);
+                        this.registeredViewIds.Add(info.ID);
+                        this.views.Add(view);
+                    }
+
+                    this.viewsLoaded = true;
+                }
+
+                /// <summary>
+                ///     Parses all of the element info.
+                /// </summary>
+                /// <param name = "elementInfo">The element info message.</param>
+                internal void Parse(Skyline.DataMiner.Net.Messages.ElementInfoEventMessage elementInfo)
+                {
+                    this.IsLoaded = true;
+                    try
+                    {
+                        this.ParseElementInfo(elementInfo);
+                    }
+                    catch
+                    {
+                        this.IsLoaded = false;
+                        throw;
+                    }
+                }
+
+                /// <summary>
+                ///     Update the updataProperties HashSet with a change event.
+                /// </summary>
+                /// <param name = "sender"></param>
+                /// <param name = "e"></param>
+                internal void PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+                {
+                    this.updatedProperties.Add(e.PropertyName);
+                }
+
+                /// <summary>
+                ///     Initializes the element.
+                /// </summary>
+                private void Initialize(Skyline.DataMiner.Net.Messages.ElementInfoEventMessage elementInfo)
+                {
+                    this.elementInfo = elementInfo;
+                    this.Initialize();
+                    this.elementCommunicationConnections = new Skyline.DataMiner.Library.Common.ElementConnectionCollection(this.elementInfo);
+                }
+
+                /// <summary>
+                ///     Initializes the element.
+                /// </summary>
+                private void Initialize()
+                {
+                    this.generalSettings = new Skyline.DataMiner.Library.Common.GeneralSettings(this);
+                    this.deviceSettings = new Skyline.DataMiner.Library.Common.DeviceSettings(this);
+                    this.replicationSettings = new Skyline.DataMiner.Library.Common.ReplicationSettings(this);
+                    this.advancedSettings = new Skyline.DataMiner.Library.Common.AdvancedSettings(this);
+                    this.failoverSettings = new Skyline.DataMiner.Library.Common.FailoverSettings(this);
+                    this.redundancySettings = new Skyline.DataMiner.Library.Common.RedundancySettings(this);
+                    this.dveSettings = new Skyline.DataMiner.Library.Common.DveSettings(this);
+                    this.settings = new System.Collections.Generic.List<Skyline.DataMiner.Library.Common.ElementSettings>{this.generalSettings, this.deviceSettings, this.replicationSettings, this.advancedSettings, this.failoverSettings, this.redundancySettings, this.dveSettings};
+                }
+
+                /// <summary>
+                ///     Parse an ElementPortInfo object in order to add IElementConnection objects to the ElementConnectionCollection.
+                /// </summary>
+                /// <param name = "info">The ElementPortInfo object.</param>
+                private void ParseConnection(Skyline.DataMiner.Net.Messages.ElementPortInfo info)
+                {
+                    switch (info.ProtocolType)
+                    {
+                        case Skyline.DataMiner.Net.Messages.ProtocolType.Virtual:
+                            var myVirtualConnection = new Skyline.DataMiner.Library.Common.VirtualConnection(info);
+                            this.elementCommunicationConnections[info.PortID] = myVirtualConnection;
+                            break;
+                        case Skyline.DataMiner.Net.Messages.ProtocolType.SnmpV1:
+                            var mySnmpV1Connection = new Skyline.DataMiner.Library.Common.SnmpV1Connection(info);
+                            this.elementCommunicationConnections[info.PortID] = mySnmpV1Connection;
+                            break;
+                        case Skyline.DataMiner.Net.Messages.ProtocolType.SnmpV2:
+                            var mySnmpv2Connection = new Skyline.DataMiner.Library.Common.SnmpV2Connection(info);
+                            this.elementCommunicationConnections[info.PortID] = mySnmpv2Connection;
+                            break;
+                        case Skyline.DataMiner.Net.Messages.ProtocolType.SnmpV3:
+                            var mySnmpV3Connection = new Skyline.DataMiner.Library.Common.SnmpV3Connection(info);
+                            this.elementCommunicationConnections[info.PortID] = mySnmpV3Connection;
+                            break;
+                        case Skyline.DataMiner.Net.Messages.ProtocolType.Http:
+                            var myHttpConnection = new Skyline.DataMiner.Library.Common.HttpConnection(info);
+                            this.elementCommunicationConnections[info.PortID] = myHttpConnection;
+                            break;
+                        default:
+                            var myConnection = new Skyline.DataMiner.Library.Common.RealConnection(info);
+                            this.elementCommunicationConnections[info.PortID] = myConnection;
+                            break;
+                    }
+                }
+
+                /// <summary>
+                ///     Parse an ElementInfoEventMessage object.
+                /// </summary>
+                /// <param name = "elementInfo"></param>
+                private void ParseConnections(Skyline.DataMiner.Net.Messages.ElementInfoEventMessage elementInfo)
+                {
+                    // Keep this object in case properties are accessed.
+                    this.elementInfo = elementInfo;
+                    this.ParseConnection(elementInfo.MainPort);
+                    if (elementInfo.ExtraPorts != null)
+                    {
+                        foreach (Skyline.DataMiner.Net.Messages.ElementPortInfo info in elementInfo.ExtraPorts)
+                        {
+                            this.ParseConnection(info);
+                        }
+                    }
+                }
+
+                /// <summary>
+                ///     Parses the element info.
+                /// </summary>
+                /// <param name = "elementInfo">The element info.</param>
+                private void ParseElementInfo(Skyline.DataMiner.Net.Messages.ElementInfoEventMessage elementInfo)
+                {
+                    // Keep this object in case properties are accessed.
+                    this.elementInfo = elementInfo;
+                    foreach (Skyline.DataMiner.Library.Common.ElementSettings component in this.settings)
+                    {
+                        component.Load(elementInfo);
+                    }
+
+                    this.ParseConnections(elementInfo);
+                }
+
+                /// <summary>
+                ///     Parses the element properties.
+                /// </summary>
+                private void ParseElementProperties()
+                {
+                    this.properties.Clear();
+                    foreach (Skyline.DataMiner.Library.Common.Properties.IDmsElementPropertyDefinition definition in this.Dms.ElementPropertyDefinitions)
+                    {
+                        Skyline.DataMiner.Net.Messages.PropertyInfo info = null;
+                        if (this.elementInfo.Properties != null)
+                        {
+                            info = System.Linq.Enumerable.FirstOrDefault(this.elementInfo.Properties, p => p.Name.Equals(definition.Name, System.StringComparison.OrdinalIgnoreCase));
+                            var duplicates = System.Linq.Enumerable.ToList(System.Linq.Enumerable.Select(System.Linq.Enumerable.Where(System.Linq.Enumerable.GroupBy(this.elementInfo.Properties, p => p.Name), g => System.Linq.Enumerable.Count(g) > 1), g => g.Key));
+                            if (System.Linq.Enumerable.Any(duplicates))
+                            {
+                                string message = "Duplicate element properties detected. Element \"" + this.elementInfo.Name + "\" (" + this.elementInfo.DataMinerID + "/" + this.elementInfo.ElementID + "), duplicate properties: " + string.Join(", ", duplicates) + ".";
+                                Skyline.DataMiner.Library.Common.Logger.Log(message);
+                            }
+                        }
+
+                        string propertyValue = info != null ? info.Value : System.String.Empty;
+                        if (definition.IsReadOnly)
+                        {
+                            this.properties.Add(definition.Name, new Skyline.DataMiner.Library.Common.Properties.DmsElementProperty(this, definition, propertyValue));
+                        }
+                        else
+                        {
+                            var property = new Skyline.DataMiner.Library.Common.Properties.DmsWritableElementProperty(this, definition, propertyValue);
+                            this.properties.Add(definition.Name, property);
+                            property.PropertyChanged += this.PropertyChanged;
+                        }
+                    }
+
+                    this.propertiesLoaded = true;
+                }
+            }
+
+            /// <summary>
+            /// Represents a set of <see cref = "IDmsView"/> items.
+            /// </summary>
+            [System.Serializable]
+            public sealed class DmsViewSet : System.Collections.Generic.ISet<Skyline.DataMiner.Library.Common.IDmsView>
+            {
+                /// <summary>
+                /// The views in the set.
+                /// </summary>
+                private readonly System.Collections.Generic.HashSet<Skyline.DataMiner.Library.Common.IDmsView> views = new System.Collections.Generic.HashSet<Skyline.DataMiner.Library.Common.IDmsView>(new Skyline.DataMiner.Library.Common.DmsViewEqualityComparer());
+                /// <summary>
+                /// Gets the number of views that are contained in a set.
+                /// </summary>
+                /// <value>The number of views that are contained in the set.</value>
+                public int Count
+                {
+                    get
+                    {
+                        return views.Count;
+                    }
+                }
+
+                /// <summary>
+                /// Gets a value indicating whether a collection is read-only.
+                /// </summary>
+                /// <value><c>true</c> if the collection is read-only; otherwise, <c>false</c>.</value>
+                bool System.Collections.Generic.ICollection<Skyline.DataMiner.Library.Common.IDmsView>.IsReadOnly
+                {
+                    get
+                    {
+                        return ((System.Collections.Generic.ICollection<Skyline.DataMiner.Library.Common.IDmsView>)views).IsReadOnly;
+                    }
+                }
+
+                /// <summary>
+                /// Adds the specified item to a set.
+                /// </summary>
+                /// <param name = "item">The item to add to the set.</param>
+                /// <exception cref = "ArgumentNullException">The value of a set operation is <see langword = "null"/>.</exception>
+                /// <returns><c>true</c> if the item is added to the set; <c>false</c> if the item is already present.</returns>
+                public bool Add(Skyline.DataMiner.Library.Common.IDmsView item)
+                {
+                    if (item == null)
+                    {
+                        throw new System.ArgumentNullException("item");
+                    }
+
+                    return views.Add(item);
+                }
+
+                /// <summary>
+                /// Adds the specified item to a set.
+                /// </summary>
+                /// <param name = "item">The item to add to the set.</param>
+                /// <exception cref = "ArgumentNullException">The value of a set operation is <see langword = "null"/>.</exception>
+                void System.Collections.Generic.ICollection<Skyline.DataMiner.Library.Common.IDmsView>.Add(Skyline.DataMiner.Library.Common.IDmsView item)
+                {
+                    if (item == null)
+                    {
+                        throw new System.ArgumentNullException("item");
+                    }
+
+                    views.Add(item);
+                }
+
+                /// <summary>
+                /// Removes all items from the collection.
+                /// </summary>
+                /// <remarks>
+                /// <para>This method is an O(n) operation, where <c>n</c> is Count.</para>
+                /// </remarks>
+                public void Clear()
+                {
+                    views.Clear();
+                }
+
+                /// <summary>
+                /// Determines whether the collection contains the specified item.
+                /// </summary>
+                /// <param name = "item">The item to locate in the set.</param>
+                /// <returns><c>true</c> if the collection contains the specified item; otherwise, <c>false</c>.</returns>
+                /// <remarks>This method is an O(1) operation.</remarks>
+                public bool Contains(Skyline.DataMiner.Library.Common.IDmsView item)
+                {
+                    return views.Contains(item);
+                }
+
+                /// <summary>
+                /// Copies the items of a ICollection&lt;IDmsView&gt; object to an array, starting at the specified array index.
+                /// </summary>
+                /// <param name = "array">The one-dimensional array that is the destination of the items copied from the object. The array must have zero-based indexing.</param>
+                /// <param name = "arrayIndex">The zero-based index in array at which copying begins.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "array"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentOutOfRangeException"><paramref name = "arrayIndex"/> is less than 0.</exception>
+                /// <exception cref = "ArgumentException"><paramref name = "arrayIndex"/> is greater than the length of the destination <paramref name = "array"/>.</exception>
+                public void CopyTo(Skyline.DataMiner.Library.Common.IDmsView[] array, int arrayIndex)
+                {
+                    views.CopyTo(array, arrayIndex);
+                }
+
+                /// <summary>
+                /// Returns an enumerator that iterates through the collection object.
+                /// </summary>
+                /// <returns>A enumerator object for the object.</returns>
+                public System.Collections.Generic.IEnumerator<Skyline.DataMiner.Library.Common.IDmsView> GetEnumerator()
+                {
+                    return views.GetEnumerator();
+                }
+
+                /// <summary>
+                /// Removes the specified item from the collection.
+                /// </summary>
+                /// <param name = "item">The item to remove.</param>
+                /// <returns><c>true</c> if the item is successfully found and removed; otherwise, <c>false</c>. This method returns <c>false</c> if the item is not found in the collection.</returns>
+                public bool Remove(Skyline.DataMiner.Library.Common.IDmsView item)
+                {
+                    return views.Remove(item);
+                }
+
+                /// <summary>
+                /// Returns an enumerator that iterates through a collection.
+                /// </summary>
+                /// <returns>An <see cref = "IEnumerator&lt;T&gt;"/> object that can be used to iterate through the collection.</returns>
+                System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+                {
+                    return ((System.Collections.IEnumerable)views).GetEnumerator();
+                }
+
+                /// <summary>
+                /// Modifies the current set to contain all items that are present in itself, the specified collection, or both.
+                /// </summary>
+                /// <param name = "other">The collection to compare to the current set.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "other"/> is <see langword = "null"/>.</exception>
+                public void UnionWith(System.Collections.Generic.IEnumerable<Skyline.DataMiner.Library.Common.IDmsView> other)
+                {
+                    views.UnionWith(other);
+                }
+
+                /// <summary>
+                /// Modifies the current set to contain only items that are present in that object and in the specified collection.
+                /// </summary>
+                /// <param name = "other">The collection to compare to the current set.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "other"/> is <see langword = "null"/>.</exception>
+                public void IntersectWith(System.Collections.Generic.IEnumerable<Skyline.DataMiner.Library.Common.IDmsView> other)
+                {
+                    views.IntersectWith(other);
+                }
+
+                /// <summary>
+                /// Removes all items in the specified collection from the current set.
+                /// </summary>
+                /// <param name = "other">The collection of items to remove from the set.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "other"/> is <see langword = "null"/>.</exception>
+                /// <remarks>
+                /// <para>The ExceptWith method is the equivalent of mathematical set subtraction.</para>
+                /// <para>This method is an O(<c>n</c>) operation, where <c>n</c> is the number of elements in the <c>other</c> parameter.</para>
+                /// </remarks>
+                public void ExceptWith(System.Collections.Generic.IEnumerable<Skyline.DataMiner.Library.Common.IDmsView> other)
+                {
+                    views.ExceptWith(other);
+                }
+
+                /// <summary>
+                /// Modifies the current set to contain only items that are present either in this object or in the specified collection, but not both.
+                /// </summary>
+                /// <param name = "other">The collection to compare to the current object.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "other"/> is <see langword = "null"/>.</exception>
+                /// <remarks>
+                /// If the other parameter is a collection with the same equality comparer as the current object, this method is an O(n) operation.
+                ///  Otherwise, this method is an O(n + m) operation, where n is the number of items in <paramref name = "other"/> and m is Count.
+                /// </remarks>
+                public void SymmetricExceptWith(System.Collections.Generic.IEnumerable<Skyline.DataMiner.Library.Common.IDmsView> other)
+                {
+                    views.SymmetricExceptWith(other);
+                }
+
+                /// <summary>
+                /// Determines whether this set is a subset of the specified collection.
+                /// </summary>
+                /// <param name = "other">The collection to compare to the current object.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "other"/> is <see langword = "null"/>.</exception>
+                /// <returns><c>true</c> if this object is a subset of other; otherwise, <c>false</c>.</returns>
+                /// <remarks>
+                /// <para>An empty set is a subset of any other collection, including an empty set.
+                /// Therefore, this method returns true if the collection represented by the current object is empty, even if the other parameter is an empty set.</para>
+                /// <para>This method always returns false if Count is greater than the number of items in <paramref name = "other"/>.</para>
+                /// <para>If the collection represented by other is a collection with the same equality comparer as the current object, this method is an O(n) operation.
+                /// Otherwise, this method is an O(n + m) operation, where n is Count and m is the number of items in <paramref name = "other"/>.</para>
+                /// </remarks>
+                public bool IsSubsetOf(System.Collections.Generic.IEnumerable<Skyline.DataMiner.Library.Common.IDmsView> other)
+                {
+                    return views.IsSubsetOf(other);
+                }
+
+                /// <summary>
+                /// Determines whether this object is a superset of the specified collection.
+                /// </summary>
+                /// <param name = "other">The collection to compare to the current object.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "other"/> is <see langword = "null"/>.</exception>
+                /// <returns><c>true</c> if the object is a superset of other; otherwise, <c>false</c>.</returns>
+                /// <remarks>
+                /// <para>All collections, including the empty set, are supersets of the empty set.
+                /// Therefore, this method returns true if the collection represented by the other parameter is empty, even if the current object is empty.</para>
+                /// <para>This method always returns false if Count is less than the number of items in <paramref name = "other"/>.</para>
+                /// <para>If the collection represented by other is a collection with the same equality comparer as the current object, this method is an O(n) operation.
+                ///  Otherwise, this method is an O(n + m) operation, where n is the number of items in <paramref name = "other"/> and m is Count.</para>
+                /// </remarks>
+                public bool IsSupersetOf(System.Collections.Generic.IEnumerable<Skyline.DataMiner.Library.Common.IDmsView> other)
+                {
+                    return views.IsSupersetOf(other);
+                }
+
+                /// <summary>
+                /// Determines whether the object is a proper superset of the specified collection.
+                /// </summary>
+                /// <param name = "other">The collection to compare to the current object.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "other"/> is <see langword = "null"/>.</exception>
+                /// <returns><c>true</c> if this object is a proper superset of other; otherwise, <c>false</c>.</returns>
+                /// <remarks>
+                /// <para>An empty set is a proper superset of any other collection.
+                /// Therefore, this method returns true if the collection represented by the other parameter is empty unless the current collection is also empty.</para>
+                /// <para>This method always returns <c>false</c> if Count is less than or equal to the number of elements in other.</para>
+                /// <para>If the collection represented by other is a collection with the same equality comparer as the current object, this method is an O(n) operation.
+                ///  Otherwise, this method is an O(n + m) operation, where n is the number of elements in other and m is Count.</para>
+                /// </remarks>
+                public bool IsProperSupersetOf(System.Collections.Generic.IEnumerable<Skyline.DataMiner.Library.Common.IDmsView> other)
+                {
+                    return views.IsProperSupersetOf(other);
+                }
+
+                /// <summary>
+                /// Determines whether this object is a proper subset of the specified collection.
+                /// </summary>
+                /// <param name = "other">The collection to compare to the current object.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "other"/> is <see langword = "null"/>.</exception>
+                /// <returns><c>true</c> if this object is a proper subset of other; otherwise, <c>false</c>.</returns>
+                /// <remarks>
+                /// <para>An empty set is a proper subset of any other collection.
+                /// Therefore, this method returns <c>true</c> if the collection represented by the current object is empty unless the other parameter is also an empty set.</para>
+                /// <para>This method always returns <c>false</c> if Count is greater than or equal to the number of items in other.</para>
+                /// <para>If the collection represented by other is a collection with the same equality comparer as the current object, then this method is an O(n) operation.
+                ///  Otherwise, this method is an O(n + m) operation, where n is Count and m is the number of items in <paramref name = "other"/>.</para>
+                /// </remarks>
+                public bool IsProperSubsetOf(System.Collections.Generic.IEnumerable<Skyline.DataMiner.Library.Common.IDmsView> other)
+                {
+                    return views.IsProperSubsetOf(other);
+                }
+
+                /// <summary>
+                /// Determines whether the current object and a specified collection share common items.
+                /// </summary>
+                /// <param name = "other">The collection to compare to the current object.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "other"/> is <see langword = "null"/>.</exception>
+                /// <returns><c>true</c> if this object and other share at least one common element; otherwise, <c>false</c>.</returns>
+                /// <remarks>
+                /// This method is an O(<c>n</c>) operation, where <c>n</c> is the number of items in <paramref name = "other"/>.
+                /// </remarks>
+                public bool Overlaps(System.Collections.Generic.IEnumerable<Skyline.DataMiner.Library.Common.IDmsView> other)
+                {
+                    return views.Overlaps(other);
+                }
+
+                /// <summary>
+                /// Determines whether this object and the specified collection contain the same items.
+                /// </summary>
+                /// <param name = "other">The collection to compare to the current object.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "other"/> is <see langword = "null"/>.</exception>
+                /// <returns>true if this set is equal to <paramref name = "other"/>; otherwise, false.</returns>
+                /// <remarks>
+                /// <para>The SetEquals method ignores duplicate entries and the order of items in the <paramref name = "other"/> parameter.</para>
+                /// <para>If the collection represented by other is a collection with the same equality comparer as the current object, this method is an O(n) operation.
+                /// Otherwise, this method is an O(n + m) operation, where n is the number of items in <paramref name = "other"/> and m is Count.</para>
+                /// </remarks>
+                public bool SetEquals(System.Collections.Generic.IEnumerable<Skyline.DataMiner.Library.Common.IDmsView> other)
+                {
+                    return views.SetEquals(other);
+                }
             }
 
             /// <summary>
@@ -2205,6 +4050,16 @@ namespace Skyline.DataMiner
                 {
                     get;
                 }
+
+                /// <summary>
+                /// Gets the specified table.
+                /// </summary>
+                /// <param name = "tableId">The table parameter ID.</param>
+                /// <exception cref = "ArgumentException"><paramref name = "tableId"/> is invalid.</exception>
+                /// <exception cref = "ElementNotFoundException">The element was not found in the DataMiner System.</exception>
+                /// <exception cref = "ElementStoppedException">The element is not active.</exception>
+                /// <returns>The table that corresponds with the specified ID.</returns>
+                Skyline.DataMiner.Library.Common.IDmsTable GetTable(int tableId);
             }
 
             /// <summary>
@@ -4780,6 +6635,773 @@ namespace Skyline.DataMiner
             }
 
             /// <summary>
+            /// Represents the advanced element information.
+            /// </summary>
+            internal class AdvancedSettings : Skyline.DataMiner.Library.Common.ElementSettings, Skyline.DataMiner.Library.Common.IAdvancedSettings
+            {
+                /// <summary>
+                /// Value indicating whether the element is hidden.
+                /// </summary>
+                private bool isHidden;
+                /// <summary>
+                /// Value indicating whether the element is read-only.
+                /// </summary>
+                private bool isReadOnly;
+                /// <summary>
+                /// Indicates whether this is a simulated element.
+                /// </summary>
+                private bool isSimulation;
+                /// <summary>
+                /// The element timeout value.
+                /// </summary>
+                private System.TimeSpan timeout = new System.TimeSpan(0, 0, 30);
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "AdvancedSettings"/> class.
+                /// </summary>
+                /// <param name = "dmsElement">The reference to the <see cref = "DmsElement"/> instance this object is part of.</param>
+                internal AdvancedSettings(Skyline.DataMiner.Library.Common.DmsElement dmsElement): base(dmsElement)
+                {
+                }
+
+                /// <summary>
+                /// Gets or sets a value indicating whether the element is hidden.
+                /// </summary>
+                /// <value><c>true</c> if the element is hidden; otherwise, <c>false</c>.</value>
+                /// <exception cref = "NotSupportedException">A set operation is not supported on a derived element.</exception>
+                public bool IsHidden
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return isHidden;
+                    }
+
+                    set
+                    {
+                        DmsElement.LoadOnDemand();
+                        if (DmsElement.RedundancySettings.IsDerived)
+                        {
+                            throw new System.NotSupportedException("This operation is not supported on a derived element.");
+                        }
+
+                        if (isHidden != value)
+                        {
+                            ChangedPropertyList.Add("IsHidden");
+                            isHidden = value;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Gets or sets a value indicating whether the element is read-only.
+                /// </summary>
+                /// <value><c>true</c> if the element is read-only; otherwise, <c>false</c>.</value>
+                /// <exception cref = "NotSupportedException">A set operation is not supported on a DVE or derived element.</exception>
+                public bool IsReadOnly
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return isReadOnly;
+                    }
+
+                    set
+                    {
+                        if (DmsElement.DveSettings.IsChild || DmsElement.RedundancySettings.IsDerived)
+                        {
+                            throw new System.NotSupportedException("This operation is not supported on a DVE child or derived element.");
+                        }
+
+                        DmsElement.LoadOnDemand();
+                        if (isReadOnly != value)
+                        {
+                            ChangedPropertyList.Add("IsReadOnly");
+                            isReadOnly = value;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Gets a value indicating whether the element is running a simulation.
+                /// </summary>
+                /// <value><c>true</c> if the element is running a simulation; otherwise, <c>false</c>.</value>
+                public bool IsSimulation
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return isSimulation;
+                    }
+                }
+
+                /// <summary>
+                /// Gets or sets the element timeout value.
+                /// </summary>
+                /// <value>The timeout value.</value>
+                /// <exception cref = "ArgumentOutOfRangeException">The value specified for a set operation is not in the range of [0,120] s.</exception>
+                /// <exception cref = "NotSupportedException">A set operation is not supported on a DVE or derived element.</exception>
+                /// <remarks>Fractional seconds are ignored. For example, setting the timeout to a value of 3.5s results in setting it to 3s.</remarks>
+                public System.TimeSpan Timeout
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return timeout;
+                    }
+
+                    set
+                    {
+                        if (DmsElement.DveSettings.IsChild || DmsElement.RedundancySettings.IsDerived)
+                        {
+                            throw new System.NotSupportedException("Setting the timeout is not supported on a DVE child or derived element.");
+                        }
+
+                        DmsElement.LoadOnDemand();
+                        int timeoutInSeconds = (int)value.TotalSeconds;
+                        if (timeoutInSeconds < 0 || timeoutInSeconds > 120)
+                        {
+                            throw new System.ArgumentOutOfRangeException("value", "The timeout value must be in the range of [0,120] s.");
+                        }
+
+                        if ((int)timeout.TotalSeconds != (int)value.TotalSeconds)
+                        {
+                            ChangedPropertyList.Add("Timeout");
+                            timeout = value;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Returns the string representation of the object.
+                /// </summary>
+                /// <returns>String representation of the object.</returns>
+                public override string ToString()
+                {
+                    System.Text.StringBuilder sb = new System.Text.StringBuilder();
+                    sb.AppendLine("ADVANCED SETTINGS:");
+                    sb.AppendLine("==========================");
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Timeout: {0}{1}", Timeout, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Hidden: {0}{1}", IsHidden, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Simulation: {0}{1}", IsSimulation, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Read-only: {0}{1}", IsReadOnly, System.Environment.NewLine);
+                    return sb.ToString();
+                }
+
+                /// <summary>
+                /// Loads the information to the component.
+                /// </summary>
+                /// <param name = "elementInfo">The element information.</param>
+                internal override void Load(Skyline.DataMiner.Net.Messages.ElementInfoEventMessage elementInfo)
+                {
+                    timeout = new System.TimeSpan(0, 0, 0, 0, elementInfo.ElementTimeoutTime);
+                    isHidden = elementInfo.Hidden;
+                    isReadOnly = elementInfo.IsReadOnly;
+                    isSimulation = elementInfo.IsSimulated;
+                }
+            }
+
+            /// <summary>
+            ///  Represents a class containing the device details of an element.
+            /// </summary>
+            internal class DeviceSettings : Skyline.DataMiner.Library.Common.ElementSettings
+            {
+                /// <summary>
+                /// The type of the element.
+                /// </summary>
+                private string type = System.String.Empty;
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "DeviceSettings"/> class.
+                /// </summary>
+                /// <param name = "dmsElement">The reference to the DmsElement where this object will be used in.</param>
+                internal DeviceSettings(Skyline.DataMiner.Library.Common.DmsElement dmsElement): base(dmsElement)
+                {
+                }
+
+                /// <summary>
+                /// Gets the element type.
+                /// </summary>
+                internal string Type
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return type;
+                    }
+                }
+
+                /// <summary>
+                /// Returns the string representation of the object.
+                /// </summary>
+                /// <returns>String representation of the object.</returns>
+                public override string ToString()
+                {
+                    System.Text.StringBuilder sb = new System.Text.StringBuilder();
+                    sb.AppendLine("DEVICE SETTINGS:");
+                    sb.AppendLine("==========================");
+                    sb.AppendLine("Type: " + type);
+                    return sb.ToString();
+                }
+
+                /// <summary>
+                /// Loads the information to the component.
+                /// </summary>
+                /// <param name = "elementInfo">The element information.</param>
+                internal override void Load(Skyline.DataMiner.Net.Messages.ElementInfoEventMessage elementInfo)
+                {
+                    type = elementInfo.Type ?? System.String.Empty;
+                }
+            }
+
+            /// <summary>
+            /// Represents DVE information of an element.
+            /// </summary>
+            internal class DveSettings : Skyline.DataMiner.Library.Common.ElementSettings, Skyline.DataMiner.Library.Common.IDveSettings
+            {
+                /// <summary>
+                /// Value indicating whether DVE creation is enabled.
+                /// </summary>
+                private bool isDveCreationEnabled = true;
+                /// <summary>
+                /// Value indicating whether this element is a parent DVE.
+                /// </summary>
+                private bool isParent;
+                /// <summary>
+                /// The parent element.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.IDmsElement parent;
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "DveSettings"/> class.
+                /// </summary>
+                /// <param name = "dmsElement">The reference to the DmsElement where this object will be used in.</param>
+                internal DveSettings(Skyline.DataMiner.Library.Common.DmsElement dmsElement): base(dmsElement)
+                {
+                }
+
+                /// <summary>
+                /// Gets a value indicating whether this element is a DVE child.
+                /// </summary>
+                /// <value><c>true</c> if this element is a DVE child element; otherwise, <c>false</c>.</value>
+                public bool IsChild
+                {
+                    get
+                    {
+                        return parent != null;
+                    }
+                }
+
+                /// <summary>
+                /// Gets or sets a value indicating whether DVE creation is enabled for this element.
+                /// </summary>
+                /// <value><c>true</c> if the element DVE generation is enabled; otherwise, <c>false</c>.</value>
+                /// <exception cref = "NotSupportedException">The set operation is not supported: The element is not a DVE parent element.</exception>
+                public bool IsDveCreationEnabled
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return isDveCreationEnabled;
+                    }
+
+                    set
+                    {
+                        DmsElement.LoadOnDemand();
+                        if (!DmsElement.DveSettings.IsParent)
+                        {
+                            throw new System.NotSupportedException("This operation is only supported on DVE parent elements.");
+                        }
+
+                        if (isDveCreationEnabled != value)
+                        {
+                            ChangedPropertyList.Add("IsDveCreationEnabled");
+                            isDveCreationEnabled = value;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Gets a value indicating whether this element is a DVE parent.
+                /// </summary>
+                /// <value><c>true</c> if the element is a DVE parent element; otherwise, <c>false</c>.</value>
+                public bool IsParent
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return isParent;
+                    }
+                }
+
+                /// <summary>
+                /// Gets the parent element.
+                /// </summary>
+                /// <value>The parent element.</value>
+                public Skyline.DataMiner.Library.Common.IDmsElement Parent
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return parent;
+                    }
+                }
+
+                /// <summary>
+                /// Returns the string representation of the object.
+                /// </summary>
+                /// <returns>String representation of the object.</returns>
+                public override string ToString()
+                {
+                    System.Text.StringBuilder sb = new System.Text.StringBuilder();
+                    sb.AppendLine("DVE SETTINGS:");
+                    sb.AppendLine("==========================");
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "DVE creation enabled: {0}{1}", IsDveCreationEnabled, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Is parent DVE: {0}{1}", IsParent, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Is child DVE: {0}{1}", IsChild, System.Environment.NewLine);
+                    if (IsChild)
+                    {
+                        sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Parent DataMiner agent ID/element ID: {0}{1}", parent.DmsElementId.Value, System.Environment.NewLine);
+                    }
+
+                    return sb.ToString();
+                }
+
+                /// <summary>
+                /// Loads the information to the component.
+                /// </summary>
+                /// <param name = "elementInfo">The element information.</param>
+                internal override void Load(Skyline.DataMiner.Net.Messages.ElementInfoEventMessage elementInfo)
+                {
+                    if (elementInfo.IsDynamicElement && elementInfo.DveParentDmaId != 0 && elementInfo.DveParentElementId != 0)
+                    {
+                        parent = new Skyline.DataMiner.Library.Common.DmsElement(DmsElement.Dms, new Skyline.DataMiner.Library.Common.DmsElementId(elementInfo.DveParentDmaId, elementInfo.DveParentElementId));
+                    }
+
+                    isParent = elementInfo.IsDveMainElement;
+                    isDveCreationEnabled = elementInfo.CreateDVEs;
+                }
+            }
+
+            /// <summary>
+            /// Represents a class containing the failover settings for an element.
+            /// </summary>
+            internal class FailoverSettings : Skyline.DataMiner.Library.Common.ElementSettings, Skyline.DataMiner.Library.Common.IFailoverSettings
+            {
+                /// <summary>
+                /// In failover configurations, this can be used to force an element to run only on one specific agent.
+                /// </summary>
+                private string forceAgent = System.String.Empty;
+                /// <summary>
+                /// Is true when the element is a failover element and is online on the backup agent instead of this agent; otherwise, false.
+                /// </summary>
+                private bool isOnlineOnBackupAgent;
+                /// <summary>
+                /// Is true when the element is a failover element that needs to keep running on the same DataMiner agent event after switching; otherwise, false.
+                /// </summary>
+                private bool keepOnline;
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "FailoverSettings"/> class.
+                /// </summary>
+                /// <param name = "dmsElement">The reference to the DmsElement where this object will be used in.</param>
+                internal FailoverSettings(Skyline.DataMiner.Library.Common.DmsElement dmsElement): base(dmsElement)
+                {
+                }
+
+                /// <summary>
+                /// Gets or sets a value indicating whether to force agent.
+                /// Local IP address of the agent which will be running the element.
+                /// </summary>
+                /// <value>Value indicating whether to force agent.</value>
+                public string ForceAgent
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return forceAgent;
+                    }
+
+                    set
+                    {
+                        DmsElement.LoadOnDemand();
+                        var newValue = value == null ? System.String.Empty : value;
+                        if (!forceAgent.Equals(newValue, System.StringComparison.Ordinal))
+                        {
+                            ChangedPropertyList.Add("ForceAgent");
+                            forceAgent = newValue;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Gets a value indicating whether the element is a failover element and is online on the backup agent instead of this agent.
+                /// </summary>
+                /// <value><c>true</c> if the element is a failover element and is online on the backup agent instead of this agent; otherwise, <c>false</c>.</value>
+                public bool IsOnlineOnBackupAgent
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return isOnlineOnBackupAgent;
+                    }
+                }
+
+                /// <summary>
+                /// Gets or sets a value indicating whether the element is a failover element that needs to keep running on the same DataMiner agent event after switching.
+                /// keepOnline="true" indicates that the element needs to keep running even when the agent is offline.
+                /// </summary>
+                /// <value><c>true</c> if the element is a failover element that needs to keep running on the same DataMiner agent event after switching; otherwise, <c>false</c>.</value>
+                public bool KeepOnline
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return keepOnline;
+                    }
+
+                    set
+                    {
+                        DmsElement.LoadOnDemand();
+                        if (keepOnline != value)
+                        {
+                            ChangedPropertyList.Add("KeepOnline");
+                            keepOnline = value;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Returns the string representation of the object.
+                /// </summary>
+                /// <returns>String representation of the object.</returns>
+                public override string ToString()
+                {
+                    System.Text.StringBuilder sb = new System.Text.StringBuilder();
+                    sb.AppendLine("FAILOVER SETTINGS:");
+                    sb.AppendLine("==========================");
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Keep online: {0}{1}", KeepOnline, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Force agent: {0}{1}", ForceAgent, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Online on backup agent: {0}{1}", IsOnlineOnBackupAgent, System.Environment.NewLine);
+                    return sb.ToString();
+                }
+
+                /// <summary>
+                /// Loads the information to the component.
+                /// </summary>
+                /// <param name = "elementInfo">The element information.</param>
+                internal override void Load(Skyline.DataMiner.Net.Messages.ElementInfoEventMessage elementInfo)
+                {
+                    keepOnline = elementInfo.KeepOnline;
+                    forceAgent = elementInfo.ForceAgent ?? System.String.Empty;
+                    isOnlineOnBackupAgent = elementInfo.IsOnlineOnBackupAgent;
+                }
+            }
+
+            /// <summary>
+            /// Represents general element information.
+            /// </summary>
+            internal class GeneralSettings : Skyline.DataMiner.Library.Common.ElementSettings
+            {
+                /// <summary>
+                /// The name of the alarm template.
+                /// </summary>
+                private string alarmTemplateName;
+                /// <summary>
+                /// The SLNet call that will retrieve the alarm template from the system if needed.
+                /// </summary>
+                private System.Lazy<Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplate> alarmTemplateLoader;
+                /// <summary>
+                /// The alarm template assigned to this element.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplate alarmTemplate;
+                /// <summary>
+                /// Element description.
+                /// </summary>
+                private string description = System.String.Empty;
+                /// <summary>
+                /// The hosting DataMiner agent.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.Dma host;
+                /// <summary>
+                /// The element state.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.ElementState state = Skyline.DataMiner.Library.Common.ElementState.Active;
+                /// <summary>
+                /// Instance of the protocol this element executes.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.DmsProtocol protocol;
+                /// <summary>
+                /// The trend template assigned to this element.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.Templates.IDmsTrendTemplate trendTemplate;
+                /// <summary>
+                /// The name of the element.
+                /// </summary>
+                private string name;
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "GeneralSettings"/> class.
+                /// </summary>
+                /// <param name = "dmsElement">The reference to the DmsElement where this object will be used in.</param>
+                internal GeneralSettings(Skyline.DataMiner.Library.Common.DmsElement dmsElement): base(dmsElement)
+                {
+                }
+
+                /// <summary>
+                /// Gets or sets the alarm template definition of the element.
+                /// This can either be an alarm template or an alarm template group.
+                /// </summary>
+                internal Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplate AlarmTemplate
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        if (!alarmTemplateLoader.IsValueCreated)
+                        {
+                            alarmTemplate = alarmTemplateLoader.Value;
+                        }
+
+                        return alarmTemplate;
+                    }
+
+                    set
+                    {
+                        DmsElement.LoadOnDemand();
+                        string newAlarmTemplateName = value == null ? System.String.Empty : value.Name;
+                        bool isCurrentEmpty = System.String.IsNullOrWhiteSpace(alarmTemplateName);
+                        bool isNewEmpty = System.String.IsNullOrWhiteSpace(newAlarmTemplateName);
+                        bool updateRequired = isCurrentEmpty ? !isNewEmpty : !alarmTemplateName.Equals(newAlarmTemplateName, System.StringComparison.OrdinalIgnoreCase);
+                        if (updateRequired)
+                        {
+                            ChangedPropertyList.Add("AlarmTemplate");
+                            alarmTemplateName = newAlarmTemplateName;
+                            alarmTemplateLoader = new System.Lazy<Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplate>(() => value);
+                            alarmTemplate = alarmTemplateLoader.Value;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Gets or sets the element description.
+                /// </summary>
+                internal string Description
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return description;
+                    }
+
+                    set
+                    {
+                        DmsElement.LoadOnDemand();
+                        string newValue = value == null ? System.String.Empty : value;
+                        if (!description.Equals(newValue, System.StringComparison.Ordinal))
+                        {
+                            ChangedPropertyList.Add("Description");
+                            description = newValue;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Gets or sets the system-wide element ID.
+                /// </summary>
+                internal Skyline.DataMiner.Library.Common.DmsElementId DmsElementId
+                {
+                    get;
+                    set;
+                }
+
+                /// <summary>
+                /// Gets the DataMiner agent that hosts the element.
+                /// </summary>
+                internal Skyline.DataMiner.Library.Common.Dma Host
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return host;
+                    }
+                }
+
+                /// <summary>
+                /// Gets or sets the state of the element.
+                /// </summary>
+                internal Skyline.DataMiner.Library.Common.ElementState State
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return state;
+                    }
+
+                    set
+                    {
+                        DmsElement.LoadOnDemand();
+                        state = value;
+                    }
+                }
+
+                /// <summary>
+                /// Gets or sets the trend template assigned to this element.
+                /// </summary>
+                internal Skyline.DataMiner.Library.Common.Templates.IDmsTrendTemplate TrendTemplate
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return trendTemplate;
+                    }
+
+                    set
+                    {
+                        DmsElement.LoadOnDemand();
+                        bool updateRequired = false;
+                        if (trendTemplate == null)
+                        {
+                            if (value != null)
+                            {
+                                updateRequired = true;
+                            }
+                        }
+                        else
+                        {
+                            if (value == null || !trendTemplate.Equals(value))
+                            {
+                                updateRequired = true;
+                            }
+                        }
+
+                        if (updateRequired)
+                        {
+                            ChangedPropertyList.Add("TrendTemplate");
+                            trendTemplate = value;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Gets or sets the name of the element.
+                /// </summary>
+                /// <exception cref = "NotSupportedException">A set operation is not supported on a DVE child or a derived element.</exception>
+                internal string Name
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return name;
+                    }
+
+                    set
+                    {
+                        DmsElement.LoadOnDemand();
+                        if (DmsElement.DveSettings.IsChild || DmsElement.RedundancySettings.IsDerived)
+                        {
+                            throw new System.NotSupportedException("Setting the name of a DVE child or a derived element is not supported.");
+                        }
+
+                        if (!name.Equals(value, System.StringComparison.Ordinal))
+                        {
+                            ChangedPropertyList.Add("Name");
+                            name = value.Trim();
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Gets or sets the instance of the protocol.
+                /// </summary>
+                /// <exception cref = "ArgumentNullException">The value of a set operation is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException">The value of a set operation is empty.</exception>
+                internal Skyline.DataMiner.Library.Common.DmsProtocol Protocol
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return protocol;
+                    }
+
+                    set
+                    {
+                        if (value == null)
+                        {
+                            throw new System.ArgumentNullException("value");
+                        }
+
+                        DmsElement.LoadOnDemand();
+                        ChangedPropertyList.Add("Protocol");
+                        protocol = value;
+                    }
+                }
+
+                /// <summary>
+                /// Returns the string representation of the object.
+                /// </summary>
+                /// <returns>String representation of the object.</returns>
+                public override string ToString()
+                {
+                    System.Text.StringBuilder sb = new System.Text.StringBuilder();
+                    sb.AppendLine("GENERAL SETTINGS:");
+                    sb.AppendLine("==========================");
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Name: {0}{1}", DmsElement.Name, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Description: {0}{1}", Description, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Protocol name: {0}{1}", Protocol.Name, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Protocol version: {0}{1}", Protocol.Version, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "DMA ID: {0}{1}", DmsElementId.AgentId, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Element ID: {0}{1}", DmsElementId.ElementId, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Hosting DMA ID: {0}{1}", Host.Id, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Alarm template: {0}{1}", AlarmTemplate, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Trend template: {0}{1}", TrendTemplate, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "State: {0}{1}", State, System.Environment.NewLine);
+                    return sb.ToString();
+                }
+
+                /// <summary>
+                /// Loads the information to the component.
+                /// </summary>
+                /// <param name = "elementInfo">The element information.</param>
+                internal override void Load(Skyline.DataMiner.Net.Messages.ElementInfoEventMessage elementInfo)
+                {
+                    DmsElementId = new Skyline.DataMiner.Library.Common.DmsElementId(elementInfo.DataMinerID, elementInfo.ElementID);
+                    description = elementInfo.Description ?? System.String.Empty;
+                    protocol = new Skyline.DataMiner.Library.Common.DmsProtocol(DmsElement.Dms, elementInfo.Protocol, elementInfo.ProtocolVersion);
+                    alarmTemplateName = elementInfo.ProtocolTemplate;
+                    trendTemplate = System.String.IsNullOrWhiteSpace(elementInfo.Trending) ? null : new Skyline.DataMiner.Library.Common.Templates.DmsTrendTemplate(DmsElement.Dms, elementInfo.Trending, protocol);
+                    state = (Skyline.DataMiner.Library.Common.ElementState)elementInfo.State;
+                    name = elementInfo.Name ?? System.String.Empty;
+                    host = new Skyline.DataMiner.Library.Common.Dma(DmsElement.Dms, elementInfo.HostingAgentID);
+                    alarmTemplateLoader = new System.Lazy<Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplate>(() => LoadAlarmTemplateDefinition());
+                }
+
+                /// <summary>
+                /// Loads the alarm template definition.
+                /// This method checks whether there is a group or a template assigned to the element.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplate LoadAlarmTemplateDefinition()
+                {
+                    Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplate innerAlarmTemplate = alarmTemplate; // do not use public property here as it will cause cyclic call
+                    if (innerAlarmTemplate == null && !System.String.IsNullOrWhiteSpace(alarmTemplateName))
+                    {
+                        Skyline.DataMiner.Net.Messages.GetAlarmTemplateMessage message = new Skyline.DataMiner.Net.Messages.GetAlarmTemplateMessage{AsOneObject = true, Protocol = protocol.Name, Version = protocol.Version, Template = alarmTemplateName};
+                        Skyline.DataMiner.Net.Messages.AlarmTemplateEventMessage response = (Skyline.DataMiner.Net.Messages.AlarmTemplateEventMessage)DmsElement.Dms.Communication.SendSingleResponseMessage(message);
+                        if (response != null)
+                        {
+                            switch (response.Type)
+                            {
+                                case Skyline.DataMiner.Net.Messages.AlarmTemplateType.Template:
+                                    innerAlarmTemplate = new Skyline.DataMiner.Library.Common.Templates.DmsStandaloneAlarmTemplate(DmsElement.Dms, response);
+                                    break;
+                                case Skyline.DataMiner.Net.Messages.AlarmTemplateType.Group:
+                                    innerAlarmTemplate = new Skyline.DataMiner.Library.Common.Templates.DmsAlarmTemplateGroup(DmsElement.Dms, response);
+                                    break;
+                                default:
+                                    throw new System.InvalidOperationException("Unexpected value: " + response.Type);
+                            }
+                        }
+                    }
+
+                    return innerAlarmTemplate;
+                }
+            }
+
+            /// <summary>
             /// DataMiner element advanced settings interface.
             /// </summary>
             public interface IAdvancedSettings
@@ -4874,6 +7496,42 @@ namespace Skyline.DataMiner
             }
 
             /// <summary>
+            /// DataMiner element failover settings interface.
+            /// </summary>
+            internal interface IFailoverSettings
+            {
+                /// <summary>
+                /// Gets or sets a value indicating whether to force agent.
+                /// Local IP address of the agent which will be running the element.
+                /// </summary>
+                /// <value>Value indicating whether to force agent.</value>
+                string ForceAgent
+                {
+                    get;
+                    set;
+                }
+
+                /// <summary>
+                /// Gets a value indicating whether the element is a failover element and is online on the backup agent instead of this agent.
+                /// </summary>
+                /// <value><c>true</c> if the element is a failover element and is online on the backup agent instead of this agent; otherwise, <c>false</c>.</value>
+                bool IsOnlineOnBackupAgent
+                {
+                    get;
+                }
+
+                /// <summary>
+                /// Gets or sets a value indicating whether the element is a failover element that needs to keep running on the same DataMiner agent event after switching.
+                /// </summary>
+                /// <value><c>true</c> if the element is a failover element that needs to keep running on the same DataMiner agent event after switching; otherwise, <c>false</c>.</value>
+                bool KeepOnline
+                {
+                    get;
+                    set;
+                }
+            }
+
+            /// <summary>
             /// DataMiner element redundancy settings interface.
             /// </summary>
             public interface IRedundancySettings
@@ -4960,6 +7618,665 @@ namespace Skyline.DataMiner
             }
 
             /// <summary>
+            /// Represents the redundancy settings for a element.
+            /// </summary>
+            internal class RedundancySettings : Skyline.DataMiner.Library.Common.ElementSettings, Skyline.DataMiner.Library.Common.IRedundancySettings
+            {
+                /// <summary>
+                /// Value indicating whether or not this element is derived from another element.
+                /// </summary>
+                private bool isDerived;
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "RedundancySettings"/> class.
+                /// </summary>
+                /// <param name = "dmsElement">The reference to the <see cref = "DmsElement"/> instance this object is part of.</param>
+                internal RedundancySettings(Skyline.DataMiner.Library.Common.DmsElement dmsElement): base(dmsElement)
+                {
+                }
+
+                /// <summary>
+                /// Gets or sets a value indicating whether the element is derived from another element.
+                /// </summary>
+                /// <value><c>true</c> if the element is derived from another element; otherwise, <c>false</c>.</value>
+                public bool IsDerived
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return isDerived;
+                    }
+
+                    internal set
+                    {
+                        isDerived = value;
+                    }
+                }
+
+                /// <summary>
+                /// Returns the string representation of the object.
+                /// </summary>
+                /// <returns>String representation of the object.</returns>
+                public override string ToString()
+                {
+                    System.Text.StringBuilder sb = new System.Text.StringBuilder();
+                    sb.AppendLine("REDUNDANCY SETTINGS:");
+                    sb.AppendLine("==========================");
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Derived: {0}{1}", isDerived, System.Environment.NewLine);
+                    return sb.ToString();
+                }
+
+                /// <summary>
+                /// Loads the information to the component.
+                /// </summary>
+                /// <param name = "elementInfo">The element information.</param>
+                internal override void Load(Skyline.DataMiner.Net.Messages.ElementInfoEventMessage elementInfo)
+                {
+                    isDerived = elementInfo.IsDerivedElement;
+                }
+            }
+
+            /// <summary>
+            /// Represents the replication information of an element.
+            /// </summary>
+            internal class ReplicationSettings : Skyline.DataMiner.Library.Common.ElementSettings, Skyline.DataMiner.Library.Common.IReplicationSettings
+            {
+                /// <summary>
+                /// The domain the specified user belongs to.
+                /// </summary>
+                private string domain = System.String.Empty;
+                /// <summary>
+                /// External DMP engine.
+                /// </summary>
+                private bool connectsToExternalDmp;
+                /// <summary>
+                /// IP address of the source DataMiner Agent.
+                /// </summary>
+                private string ipAddressSourceDma = System.String.Empty;
+                /// <summary>
+                /// Value indicating whether this element is replicated.
+                /// </summary>
+                private bool isReplicated;
+                /// <summary>
+                /// The options string.
+                /// </summary>
+                private string options = System.String.Empty;
+                /// <summary>
+                /// The password.
+                /// </summary>
+                private string password = System.String.Empty;
+                /// <summary>
+                /// The ID of the source element.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.DmsElementId sourceDmsElementId = new Skyline.DataMiner.Library.Common.DmsElementId(-1, -1);
+                /// <summary>
+                /// The user name.
+                /// </summary>
+                private string userName = System.String.Empty;
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ReplicationSettings"/> class.
+                /// </summary>
+                /// <param name = "dmsElement">The reference to the DmsElement where this object will be used in.</param>
+                internal ReplicationSettings(Skyline.DataMiner.Library.Common.DmsElement dmsElement): base(dmsElement)
+                {
+                }
+
+                /// <summary>
+                /// Gets the domain the user belongs to.
+                /// </summary>
+                /// <value>The domain the user belongs to.</value>
+                public string Domain
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return domain;
+                    }
+
+                    internal set
+                    {
+                        domain = value;
+                    }
+                }
+
+                /// <summary>
+                /// Gets a value indicating whether it is allowed to perform logic of a protocol on the replicated element instead of only showing the data received on the original element.
+                /// By Default, some functionality is not allowed on replicated elements (get, set, QAs, triggers etc.).
+                /// </summary>
+                /// <value><c>true</c> if it is allowed to perform the logic of a protocol on the replicated element; otherwise, <c>false</c>.</value>
+                public bool ConnectsToExternalProbe
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return connectsToExternalDmp;
+                    }
+                }
+
+                /// <summary>
+                /// Gets the IP address of the DataMiner Agent from which this element is replicated.
+                /// </summary>
+                /// <value>The IP address of the DataMiner Agent from which this element is replicated</value>
+                public string IPAddressSourceAgent
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return ipAddressSourceDma;
+                    }
+
+                    internal set
+                    {
+                        ipAddressSourceDma = value;
+                    }
+                }
+
+                /// <summary>
+                /// Gets a value indicating whether this element is replicated.
+                /// </summary>
+                /// <value><c>true</c> if this element is replicated; otherwise, <c>false</c>.</value>
+                public bool IsReplicated
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return isReplicated;
+                    }
+
+                    internal set
+                    {
+                        isReplicated = value;
+                    }
+                }
+
+                /// <summary>
+                /// Gets the additional options defined when replicating the element.
+                /// </summary>
+                /// <value>The additional options defined when replicating the element.</value>
+                public string Options
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return options;
+                    }
+
+                    internal set
+                    {
+                        options = value;
+                    }
+                }
+
+                /// <summary>
+                /// Gets the password corresponding with the user name to log in on the source DataMiner Agent.
+                /// </summary>
+                /// <value>The password corresponding with the user name.</value>
+                public string Password
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return password;
+                    }
+
+                    internal set
+                    {
+                        password = value;
+                    }
+                }
+
+                /// <summary>
+                /// Gets the system-wide element ID of the source element.
+                /// </summary>
+                /// <value>The system-wide element ID of the source element.</value>
+                public Skyline.DataMiner.Library.Common.DmsElementId SourceDmsElementId
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return sourceDmsElementId;
+                    }
+
+                    internal set
+                    {
+                        sourceDmsElementId = value;
+                    }
+                }
+
+                /// <summary>
+                /// Gets the user name used to log in on the source DataMiner Agent.
+                /// </summary>
+                /// <value>The user name used to log in on the source DataMiner Agent.</value>
+                public string UserName
+                {
+                    get
+                    {
+                        DmsElement.LoadOnDemand();
+                        return userName;
+                    }
+
+                    internal set
+                    {
+                        userName = value;
+                    }
+                }
+
+                /// <summary>
+                /// Returns the string representation of the object.
+                /// </summary>
+                /// <returns>String representation of the object.</returns>
+                public override string ToString()
+                {
+                    System.Text.StringBuilder sb = new System.Text.StringBuilder();
+                    sb.AppendLine("REPLICATION SETTINGS:");
+                    sb.AppendLine("==========================");
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Replicated: {0}{1}", isReplicated, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Source DMA ID: {0}{1}", sourceDmsElementId.AgentId, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Source element ID: {0}{1}", sourceDmsElementId.ElementId, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "IP address source DMA: {0}{1}", ipAddressSourceDma, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Domain: {0}{1}", domain, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "User name: {0}{1}", userName, System.Environment.NewLine);
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "Password: {0}{1}", password, System.Environment.NewLine);
+                    //sb.AppendFormat(CultureInfo.InvariantCulture, "Options: {0}{1}", options, Environment.NewLine);
+                    //sb.AppendFormat(CultureInfo.InvariantCulture, "Replication DMP engine: {0}{1}", connectsToExternalDmp, Environment.NewLine);
+                    return sb.ToString();
+                }
+
+                /// <summary>
+                /// Loads the information to the component.
+                /// </summary>
+                /// <param name = "elementInfo">The element information.</param>
+                internal override void Load(Skyline.DataMiner.Net.Messages.ElementInfoEventMessage elementInfo)
+                {
+                    isReplicated = elementInfo.ReplicationActive;
+                    if (!isReplicated)
+                    {
+                        options = System.String.Empty;
+                        ipAddressSourceDma = System.String.Empty;
+                        password = System.String.Empty;
+                        domain = System.String.Empty;
+                        sourceDmsElementId = new Skyline.DataMiner.Library.Common.DmsElementId(-1, -1);
+                        userName = System.String.Empty;
+                        connectsToExternalDmp = false;
+                    }
+
+                    options = elementInfo.ReplicationOptions ?? System.String.Empty;
+                    ipAddressSourceDma = elementInfo.ReplicationDmaIP ?? System.String.Empty;
+                    password = elementInfo.ReplicationPwd ?? System.String.Empty;
+                    domain = elementInfo.ReplicationDomain ?? System.String.Empty;
+                    bool isEmpty = System.String.IsNullOrWhiteSpace(elementInfo.ReplicationRemoteElement) || elementInfo.ReplicationRemoteElement.Equals("/", System.StringComparison.Ordinal);
+                    if (isEmpty)
+                    {
+                        sourceDmsElementId = new Skyline.DataMiner.Library.Common.DmsElementId(-1, -1);
+                    }
+                    else
+                    {
+                        try
+                        {
+                            sourceDmsElementId = new Skyline.DataMiner.Library.Common.DmsElementId(elementInfo.ReplicationRemoteElement);
+                        }
+                        catch (System.Exception ex)
+                        {
+                            string logMessage = "Failed parsing replication element info for element " + System.Convert.ToString(elementInfo.Name) + " (" + System.Convert.ToString(elementInfo.DataMinerID) + "/" + System.Convert.ToString(elementInfo.ElementID) + "). Replication remote element is: " + System.Convert.ToString(elementInfo.ReplicationRemoteElement) + System.Environment.NewLine + ex;
+                            Skyline.DataMiner.Library.Common.Logger.Log(logMessage);
+                            sourceDmsElementId = new Skyline.DataMiner.Library.Common.DmsElementId(-1, -1);
+                        }
+                    }
+
+                    userName = elementInfo.ReplicationUser ?? System.String.Empty;
+                    connectsToExternalDmp = elementInfo.ReplicationIsExternalDMP;
+                }
+            }
+
+            /// <summary>
+            /// Represents a base class for all of the components in a DmsElement object.
+            /// </summary>
+            internal abstract class ElementSettings
+            {
+                /// <summary>
+                /// The list of changed properties.
+                /// </summary>
+                private readonly System.Collections.Generic.List<System.String> changedPropertyList = new System.Collections.Generic.List<System.String>();
+                /// <summary>
+                /// Instance of the DmsElement class where these classes will be used for.
+                /// </summary>
+                private readonly Skyline.DataMiner.Library.Common.DmsElement dmsElement;
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "ElementSettings"/> class.
+                /// </summary>
+                /// <param name = "dmsElement">The reference to the <see cref = "DmsElement"/> instance this object is part of.</param>
+                protected ElementSettings(Skyline.DataMiner.Library.Common.DmsElement dmsElement)
+                {
+                    this.dmsElement = dmsElement;
+                }
+
+                /// <summary>
+                /// Gets the element this object belongs to.
+                /// </summary>
+                internal Skyline.DataMiner.Library.Common.DmsElement DmsElement
+                {
+                    get
+                    {
+                        return dmsElement;
+                    }
+                }
+
+                /// <summary>
+                /// Gets the list of updated properties.
+                /// </summary>
+                protected internal System.Collections.Generic.List<System.String> ChangedPropertyList
+                {
+                    get
+                    {
+                        return changedPropertyList;
+                    }
+                }
+
+                /// <summary>
+                /// Based on the array provided from the DmsNotify call, parse the data to the correct fields.
+                /// </summary>
+                /// <param name = "elementInfo">Object containing all the required information. Retrieved by DmsClass.</param>
+                internal abstract void Load(Skyline.DataMiner.Net.Messages.ElementInfoEventMessage elementInfo);
+            }
+
+            /// <summary>
+            /// Represents a DataMiner protocol.
+            /// </summary>
+            internal class DmsProtocol : Skyline.DataMiner.Library.Common.DmsObject, Skyline.DataMiner.Library.Common.IDmsProtocol
+            {
+                /// <summary>
+                /// The constant value 'Production'.
+                /// </summary>
+                private const string Production = "Production";
+                /// <summary>
+                /// The protocol name.
+                /// </summary>
+                private string name;
+                /// <summary>
+                /// The protocol version.
+                /// </summary>
+                private string version;
+                /// <summary>
+                /// The type of the protocol.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.ProtocolType type;
+                /// <summary>
+                /// The protocol referenced version.
+                /// </summary>
+                private string referencedVersion;
+                /// <summary>
+                /// Whether the version is 'Production'.
+                /// </summary>
+                private bool isProduction;
+                /// <summary>
+                /// The connection info of the protocol.
+                /// </summary>
+                private System.Collections.Generic.IList<Skyline.DataMiner.Library.Common.IDmsConnectionInfo> connectionInfo = new System.Collections.Generic.List<Skyline.DataMiner.Library.Common.IDmsConnectionInfo>();
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "DmsProtocol"/> class.
+                /// </summary>
+                /// <param name = "dms">The DataMiner System.</param>
+                /// <param name = "name">The protocol name.</param>
+                /// <param name = "version">The protocol version.</param>
+                /// <param name = "type">The type of the protocol.</param>
+                /// <param name = "referencedVersion">The protocol referenced version.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "dms"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentNullException"><paramref name = "name"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentNullException"><paramref name = "version"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException"><paramref name = "name"/> is the empty string ("") or white space.</exception>
+                /// <exception cref = "ArgumentException"><paramref name = "version"/> is the empty string ("") or white space.</exception>
+                /// <exception cref = "ArgumentException"><paramref name = "version"/> is not 'Production' and <paramref name = "referencedVersion"/> is not the empty string ("") or white space.</exception>
+                internal DmsProtocol(Skyline.DataMiner.Library.Common.IDms dms, string name, string version, Skyline.DataMiner.Library.Common.ProtocolType type = Skyline.DataMiner.Library.Common.ProtocolType.Undefined, string referencedVersion = ""): base(dms)
+                {
+                    if (name == null)
+                    {
+                        throw new System.ArgumentNullException("name");
+                    }
+
+                    if (version == null)
+                    {
+                        throw new System.ArgumentNullException("version");
+                    }
+
+                    if (System.String.IsNullOrWhiteSpace(name))
+                    {
+                        throw new System.ArgumentException("The name of the protocol is the empty string (\"\") or white space.", "name");
+                    }
+
+                    if (System.String.IsNullOrWhiteSpace(version))
+                    {
+                        throw new System.ArgumentException("The version of the protocol is the empty string (\"\") or white space.", "version");
+                    }
+
+                    this.name = name;
+                    this.version = version;
+                    this.type = type;
+                    this.isProduction = CheckIsProduction(this.version);
+                    if (!this.isProduction && !System.String.IsNullOrWhiteSpace(referencedVersion))
+                    {
+                        throw new System.ArgumentException("The version of the protocol is not referenced version of the protocol is not the empty string (\"\") or white space.", "referencedVersion");
+                    }
+
+                    this.referencedVersion = referencedVersion;
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "DmsProtocol"/> class.
+                /// </summary>
+                /// <param name = "dms">The DataMiner system.</param>
+                /// <param name = "infoMessage">The information message received from SLNet.</param>
+                /// <param name = "requestedProduction">The version requested to SLNet.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "infoMessage"/> is <see langword = "null"/>.</exception>
+                internal DmsProtocol(Skyline.DataMiner.Library.Common.IDms dms, Skyline.DataMiner.Net.Messages.GetProtocolInfoResponseMessage infoMessage, bool requestedProduction): base(dms)
+                {
+                    if (infoMessage == null)
+                    {
+                        throw new System.ArgumentNullException("infoMessage");
+                    }
+
+                    this.isProduction = requestedProduction;
+                    Parse(infoMessage);
+                }
+
+                /// <summary>
+                /// Gets the connection information.
+                /// </summary>
+                /// <value>The connection information.</value>
+                public System.Collections.Generic.IList<Skyline.DataMiner.Library.Common.IDmsConnectionInfo> ConnectionInfo
+                {
+                    get
+                    {
+                        LoadOnDemand();
+                        return new System.Collections.ObjectModel.ReadOnlyCollection<Skyline.DataMiner.Library.Common.IDmsConnectionInfo>(connectionInfo);
+                    }
+                }
+
+                /// <summary>
+                /// Gets the protocol name.
+                /// </summary>
+                /// <value>The protocol name.</value>
+                public string Name
+                {
+                    get
+                    {
+                        return name;
+                    }
+                }
+
+                /// <summary>
+                /// Gets the protocol version.
+                /// </summary>
+                /// <value>The protocol version.</value>
+                public string Version
+                {
+                    get
+                    {
+                        return version;
+                    }
+                }
+
+                public Skyline.DataMiner.Library.Common.ProtocolType Type
+                {
+                    get
+                    {
+                        return type;
+                    }
+                }
+
+                /// <summary>
+                /// Gets the protocol referenced version.
+                /// </summary>
+                /// <value>The protocol referenced version.</value>
+                public string ReferencedVersion
+                {
+                    get
+                    {
+                        if (System.String.IsNullOrEmpty(referencedVersion))
+                        {
+                            LoadOnDemand();
+                        }
+
+                        return referencedVersion == System.String.Empty ? null : referencedVersion;
+                    }
+                }
+
+                /// <summary>
+                /// Gets a value indicating whether the version is 'Production'.
+                /// </summary>
+                /// <value>Whether the version is 'Production'.</value>
+                public bool IsProduction
+                {
+                    get
+                    {
+                        return isProduction;
+                    }
+                }
+
+                /// <summary>
+                /// Gets the alarm template with the specified name defined for this protocol.
+                /// </summary>
+                /// <param name = "templateName">The name of the alarm template.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "templateName"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException"><paramref name = "templateName"/> is the empty string ("") or white space.</exception>
+                /// <exception cref = "AlarmTemplateNotFoundException">No alarm template with the specified name was found.</exception>
+                /// <returns>The alarm template with the specified name defined for this protocol.</returns>
+                public Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplate GetAlarmTemplate(string templateName)
+                {
+                    Skyline.DataMiner.Net.Messages.GetAlarmTemplateMessage message = new Skyline.DataMiner.Net.Messages.GetAlarmTemplateMessage{AsOneObject = true, Protocol = this.Name, Version = this.Version, Template = templateName};
+                    Skyline.DataMiner.Net.Messages.AlarmTemplateEventMessage alarmTemplateEventMessage = (Skyline.DataMiner.Net.Messages.AlarmTemplateEventMessage)dms.Communication.SendSingleResponseMessage(message);
+                    if (alarmTemplateEventMessage == null)
+                    {
+                        throw new Skyline.DataMiner.Library.Common.AlarmTemplateNotFoundException(templateName, this);
+                    }
+
+                    if (alarmTemplateEventMessage.Type == Skyline.DataMiner.Net.Messages.AlarmTemplateType.Template)
+                    {
+                        return new Skyline.DataMiner.Library.Common.Templates.DmsStandaloneAlarmTemplate(dms, alarmTemplateEventMessage);
+                    }
+                    else if (alarmTemplateEventMessage.Type == Skyline.DataMiner.Net.Messages.AlarmTemplateType.Group)
+                    {
+                        return new Skyline.DataMiner.Library.Common.Templates.DmsAlarmTemplateGroup(dms, alarmTemplateEventMessage);
+                    }
+                    else
+                    {
+                        throw new System.NotSupportedException("Support for " + alarmTemplateEventMessage.Type + " has not yet been implemented.");
+                    }
+                }
+
+                /// <summary>
+                /// Returns a string that represents the current object.
+                /// </summary>
+                /// <returns>A string that represents the current object.</returns>
+                public override string ToString()
+                {
+                    return System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Protocol name: {0}, version: {1}", Name, Version);
+                }
+
+                /// <summary>
+                /// Validate if <paramref name = "version"/> is 'Production'.
+                /// </summary>
+                /// <param name = "version">The version.</param>
+                /// <returns>Whether <paramref name = "version"/> is 'Production'.</returns>
+                internal static bool CheckIsProduction(string version)
+                {
+                    return System.String.Equals(version, Production, System.StringComparison.OrdinalIgnoreCase);
+                }
+
+                /// <summary>
+                /// Loads the object.
+                /// </summary>
+                /// <exception cref = "ProtocolNotFoundException">No protocol with the specified name and version exists in the DataMiner system.</exception>
+                internal override void Load()
+                {
+                    isProduction = CheckIsProduction(version);
+                    Skyline.DataMiner.Net.Messages.GetProtocolMessage getProtocolMessage = new Skyline.DataMiner.Net.Messages.GetProtocolMessage{Protocol = name, Version = version};
+                    Skyline.DataMiner.Net.Messages.GetProtocolInfoResponseMessage protocolInfo = (Skyline.DataMiner.Net.Messages.GetProtocolInfoResponseMessage)Communication.SendSingleResponseMessage(getProtocolMessage);
+                    if (protocolInfo != null)
+                    {
+                        Parse(protocolInfo);
+                    }
+                    else
+                    {
+                        throw new Skyline.DataMiner.Library.Common.ProtocolNotFoundException(name, version);
+                    }
+                }
+
+                /// <summary>
+                /// Parses the <see cref = "GetProtocolInfoResponseMessage"/> message.
+                /// </summary>
+                /// <param name = "protocolInfo">The protocol information.</param>
+                private void Parse(Skyline.DataMiner.Net.Messages.GetProtocolInfoResponseMessage protocolInfo)
+                {
+                    IsLoaded = true;
+                    name = protocolInfo.Name;
+                    type = (Skyline.DataMiner.Library.Common.ProtocolType)protocolInfo.ProtocolType;
+                    if (isProduction)
+                    {
+                        version = Production;
+                        referencedVersion = protocolInfo.Version;
+                    }
+                    else
+                    {
+                        version = protocolInfo.Version;
+                        referencedVersion = System.String.Empty;
+                    }
+
+                    ParseConnectionInfo(protocolInfo);
+                }
+
+                /// <summary>
+                /// Parses the <see cref = "GetProtocolInfoResponseMessage"/> message.
+                /// </summary>
+                /// <param name = "protocolInfo">The protocol information.</param>
+                private void ParseConnectionInfo(Skyline.DataMiner.Net.Messages.GetProtocolInfoResponseMessage protocolInfo)
+                {
+                    System.Collections.Generic.List<Skyline.DataMiner.Library.Common.DmsConnectionInfo> info = new System.Collections.Generic.List<Skyline.DataMiner.Library.Common.DmsConnectionInfo>();
+                    info.Add(new Skyline.DataMiner.Library.Common.DmsConnectionInfo(System.String.Empty, Skyline.DataMiner.Library.Common.EnumMapper.ConvertStringToConnectionType(protocolInfo.Type)));
+                    if (protocolInfo.AdvancedTypes != null && protocolInfo.AdvancedTypes.Length > 0 && !System.String.IsNullOrWhiteSpace(protocolInfo.AdvancedTypes))
+                    {
+                        string[] split = protocolInfo.AdvancedTypes.Split(';');
+                        foreach (string part in split)
+                        {
+                            if (part.Contains(":"))
+                            {
+                                string[] connectionSplit = part.Split(':');
+                                Skyline.DataMiner.Library.Common.ConnectionType connectionType = Skyline.DataMiner.Library.Common.EnumMapper.ConvertStringToConnectionType(connectionSplit[0]);
+                                string connectionName = connectionSplit[1];
+                                info.Add(new Skyline.DataMiner.Library.Common.DmsConnectionInfo(connectionName, connectionType));
+                            }
+                            else
+                            {
+                                Skyline.DataMiner.Library.Common.ConnectionType connectionType = Skyline.DataMiner.Library.Common.EnumMapper.ConvertStringToConnectionType(part);
+                                string connectionName = System.String.Empty;
+                                info.Add(new Skyline.DataMiner.Library.Common.DmsConnectionInfo(connectionName, connectionType));
+                            }
+                        }
+                    }
+
+                    connectionInfo = info.ToArray();
+                }
+            }
+
+            /// <summary>
             /// DataMiner protocol interface.
             /// </summary>
             public interface IDmsProtocol : Skyline.DataMiner.Library.Common.IDmsObject
@@ -5008,6 +8325,16 @@ namespace Skyline.DataMiner
                 {
                     get;
                 }
+
+                /// <summary>
+                /// Gets the alarm template with the specified name defined for this protocol.
+                /// </summary>
+                /// <param name = "templateName">The name of the alarm template.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "templateName"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException"><paramref name = "templateName"/> is the empty string ("") or white space.</exception>
+                /// <exception cref = "AlarmTemplateNotFoundException">No alarm template with the specified name was found.</exception>
+                /// <returns>The alarm template with the specified name defined for this protocol.</returns>
+                Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplate GetAlarmTemplate(string templateName);
             }
 
             /// <summary>
@@ -5528,6 +8855,100 @@ namespace Skyline.DataMiner
             /// <summary>
             /// Represents the spectrum analyzer component of an element.
             /// </summary>
+            internal class DmsSpectrumAnalyzer : Skyline.DataMiner.Library.Common.IDmsSpectrumAnalyzer
+            {
+                private readonly Skyline.DataMiner.Library.Common.IDmsElement element;
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "DmsSpectrumAnalyzer"/> class.
+                /// </summary>
+                /// <param name = "element">The element this spectrum analyzer is part of.</param>
+                public DmsSpectrumAnalyzer(Skyline.DataMiner.Library.Common.IDmsElement element)
+                {
+                    this.element = element;
+                    Monitors = new Skyline.DataMiner.Library.Common.DmsSpectrumAnalyzerMonitors(element);
+                    Presets = new Skyline.DataMiner.Library.Common.DmsSpectrumAnalyzerPresets(element);
+                    Scripts = new Skyline.DataMiner.Library.Common.DmsSpectrumAnalyzerScripts(element);
+                }
+
+                /// <summary>
+                /// Manipulate the spectrum monitors.
+                /// </summary>
+                public Skyline.DataMiner.Library.Common.IDmsSpectrumAnalyzerMonitors Monitors
+                {
+                    get;
+                    private set;
+                }
+
+                /// <summary>
+                /// Manipulate the spectrum presets.
+                /// </summary>
+                public Skyline.DataMiner.Library.Common.IDmsSpectrumAnalyzerPresets Presets
+                {
+                    get;
+                    private set;
+                }
+
+                /// <summary>
+                /// Manipulate the spectrum scripts.
+                /// </summary>
+                public Skyline.DataMiner.Library.Common.IDmsSpectrumAnalyzerScripts Scripts
+                {
+                    get;
+                    private set;
+                }
+            }
+
+            /// <summary>
+            /// Represents the spectrum analyzer monitors.
+            /// </summary>
+            internal class DmsSpectrumAnalyzerMonitors : Skyline.DataMiner.Library.Common.IDmsSpectrumAnalyzerMonitors
+            {
+                private readonly Skyline.DataMiner.Library.Common.IDmsElement element;
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "DmsSpectrumAnalyzerMonitors"/> class.
+                /// </summary>
+                /// <param name = "element">The element to which this spectrum analyzer component is part of.</param>
+                public DmsSpectrumAnalyzerMonitors(Skyline.DataMiner.Library.Common.IDmsElement element)
+                {
+                    this.element = element;
+                }
+            }
+
+            /// <summary>
+            /// Represents spectrum analyzer presets.
+            /// </summary>
+            internal class DmsSpectrumAnalyzerPresets : Skyline.DataMiner.Library.Common.IDmsSpectrumAnalyzerPresets
+            {
+                private readonly Skyline.DataMiner.Library.Common.IDmsElement element;
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "DmsSpectrumAnalyzerPresets"/> class.
+                /// </summary>
+                /// <param name = "element">The element to which this spectrum analyzer component belongs.</param>
+                public DmsSpectrumAnalyzerPresets(Skyline.DataMiner.Library.Common.IDmsElement element)
+                {
+                    this.element = element;
+                }
+            }
+
+            /// <summary>
+            /// Represents spectrum analyzer scripts.
+            /// </summary>
+            internal class DmsSpectrumAnalyzerScripts : Skyline.DataMiner.Library.Common.IDmsSpectrumAnalyzerScripts
+            {
+                private readonly Skyline.DataMiner.Library.Common.IDmsElement element;
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "DmsSpectrumAnalyzerScripts"/> class.
+                /// </summary>
+                /// <param name = "element">The element this spectrum analyzer component is part of.</param>
+                public DmsSpectrumAnalyzerScripts(Skyline.DataMiner.Library.Common.IDmsElement element)
+                {
+                    this.element = element;
+                }
+            }
+
+            /// <summary>
+            /// Represents the spectrum analyzer component of an element.
+            /// </summary>
             public interface IDmsSpectrumAnalyzer
             {
                 /// <summary>
@@ -5581,6 +9002,506 @@ namespace Skyline.DataMiner
 
             namespace Templates
             {
+                /// <summary>
+                /// Base class for standalone alarm templates and alarm template groups.
+                /// </summary>
+                internal abstract class DmsAlarmTemplate : Skyline.DataMiner.Library.Common.Templates.DmsTemplate, Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplate
+                {
+                    /// <summary>
+                    /// Initializes a new instance of the <see cref = "DmsAlarmTemplate"/> class.
+                    /// </summary>
+                    /// <param name = "dms">Object implementing the <see cref = "IDms"/> interface.</param>
+                    /// <param name = "name">The name of the alarm template.</param>
+                    /// <param name = "protocol">Instance of the protocol.</param>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "dms"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "name"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "protocol"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentException"><paramref name = "name"/> is the empty string ("") or white space.</exception>
+                    protected DmsAlarmTemplate(Skyline.DataMiner.Library.Common.IDms dms, string name, Skyline.DataMiner.Library.Common.IDmsProtocol protocol): base(dms, name, protocol)
+                    {
+                    }
+
+                    /// <summary>
+                    /// Initializes a new instance of the <see cref = "DmsAlarmTemplate"/> class.
+                    /// </summary>
+                    /// <param name = "dms">Object implementing the <see cref = "IDms"/> interface.</param>
+                    /// <param name = "name">The name of the alarm template.</param>
+                    /// <param name = "protocolName">The name of the protocol.</param>
+                    /// <param name = "protocolVersion">The version of the protocol.</param>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "dms"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "name"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "protocolName"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "protocolVersion"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentException"><paramref name = "name"/> is the empty string ("") or white space.</exception>
+                    /// <exception cref = "ArgumentException"><paramref name = "protocolName"/> is the empty string ("") or white space.</exception>
+                    /// <exception cref = "ArgumentException"><paramref name = "protocolVersion"/> is the empty string ("") or white space.</exception>
+                    protected DmsAlarmTemplate(Skyline.DataMiner.Library.Common.IDms dms, string name, string protocolName, string protocolVersion): base(dms, name, protocolName, protocolVersion)
+                    {
+                    }
+
+                    /// <summary>
+                    /// Loads all the data and properties found related to the alarm template.
+                    /// </summary>
+                    /// <exception cref = "TemplateNotFoundException">The template does not exist in the DataMiner system.</exception>
+                    internal override void Load()
+                    {
+                        Skyline.DataMiner.Net.Messages.GetAlarmTemplateMessage message = new Skyline.DataMiner.Net.Messages.GetAlarmTemplateMessage{AsOneObject = true, Protocol = Protocol.Name, Version = Protocol.Version, Template = Name};
+                        Skyline.DataMiner.Net.Messages.AlarmTemplateEventMessage response = (Skyline.DataMiner.Net.Messages.AlarmTemplateEventMessage)Dms.Communication.SendSingleResponseMessage(message);
+                        if (response != null)
+                        {
+                            Parse(response);
+                        }
+                        else
+                        {
+                            throw new Skyline.DataMiner.Library.Common.TemplateNotFoundException(Name, Protocol.Name, Protocol.Version);
+                        }
+                    }
+
+                    /// <summary>
+                    /// Parses the alarm template event message.
+                    /// </summary>
+                    /// <param name = "message">The message received from SLNet.</param>
+                    internal abstract void Parse(Skyline.DataMiner.Net.Messages.AlarmTemplateEventMessage message);
+                }
+
+                /// <summary>
+                /// Represents an alarm template group.
+                /// </summary>
+                internal class DmsAlarmTemplateGroup : Skyline.DataMiner.Library.Common.Templates.DmsAlarmTemplate, Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplateGroup
+                {
+                    /// <summary>
+                    /// The entries of the alarm group.
+                    /// </summary>
+                    private readonly System.Collections.Generic.List<Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplateGroupEntry> entries = new System.Collections.Generic.List<Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplateGroupEntry>();
+                    /// <summary>
+                    /// Initializes a new instance of the <see cref = "DmsAlarmTemplateGroup"/> class.
+                    /// </summary>
+                    /// <param name = "dms">Object implementing the <see cref = "IDms"/> interface.</param>
+                    /// <param name = "name">The name of the alarm template.</param>
+                    /// <param name = "protocol">The protocol this alarm template group corresponds with.</param>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "dms"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "name"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "protocol"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentException"><paramref name = "name"/> is the empty string ("") or white space.</exception>
+                    internal DmsAlarmTemplateGroup(Skyline.DataMiner.Library.Common.IDms dms, string name, Skyline.DataMiner.Library.Common.IDmsProtocol protocol): base(dms, name, protocol)
+                    {
+                        IsLoaded = false;
+                    }
+
+                    /// <summary>
+                    /// Initializes a new instance of the <see cref = "DmsAlarmTemplateGroup"/> class.
+                    /// </summary>
+                    /// <param name = "dms">Instance of <see cref = "Dms"/>.</param>
+                    /// <param name = "alarmTemplateEventMessage">An instance of AlarmTemplateEventMessage.</param>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "dms"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentException"><paramref name = "alarmTemplateEventMessage"/> is invalid.</exception>
+                    internal DmsAlarmTemplateGroup(Skyline.DataMiner.Library.Common.IDms dms, Skyline.DataMiner.Net.Messages.AlarmTemplateEventMessage alarmTemplateEventMessage): base(dms, alarmTemplateEventMessage.Name, alarmTemplateEventMessage.Protocol, alarmTemplateEventMessage.Version)
+                    {
+                        IsLoaded = true;
+                        foreach (Skyline.DataMiner.Net.Messages.AlarmTemplateGroupEntry entry in alarmTemplateEventMessage.GroupEntries)
+                        {
+                            Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplate template = Protocol.GetAlarmTemplate(entry.Name);
+                            entries.Add(new Skyline.DataMiner.Library.Common.Templates.DmsAlarmTemplateGroupEntry(template, entry.IsEnabled, entry.IsScheduled));
+                        }
+                    }
+
+                    /// <summary>
+                    /// Gets the entries of the alarm template group.
+                    /// </summary>
+                    public System.Collections.ObjectModel.ReadOnlyCollection<Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplateGroupEntry> Entries
+                    {
+                        get
+                        {
+                            LoadOnDemand();
+                            return entries.AsReadOnly();
+                        }
+                    }
+
+                    /// <summary>
+                    /// Returns a string that represents the current object.
+                    /// </summary>
+                    /// <returns>A string that represents the current object.</returns>
+                    public override string ToString()
+                    {
+                        return System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Template Group Name: {0}, Protocol Name: {1}, Protocol Version: {2}", Name, Protocol.Name, Protocol.Version);
+                    }
+
+                    /// <summary>
+                    /// Parses the alarm template event message.
+                    /// </summary>
+                    /// <param name = "message">The message received from the SLNet process.</param>
+                    internal override void Parse(Skyline.DataMiner.Net.Messages.AlarmTemplateEventMessage message)
+                    {
+                        IsLoaded = true;
+                        entries.Clear();
+                        foreach (Skyline.DataMiner.Net.Messages.AlarmTemplateGroupEntry entry in message.GroupEntries)
+                        {
+                            Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplate template = Protocol.GetAlarmTemplate(entry.Name);
+                            entries.Add(new Skyline.DataMiner.Library.Common.Templates.DmsAlarmTemplateGroupEntry(template, entry.IsEnabled, entry.IsScheduled));
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Represents an alarm group entry.
+                /// </summary>
+                internal class DmsAlarmTemplateGroupEntry : Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplateGroupEntry
+                {
+                    /// <summary>
+                    /// The template which is an entry of the alarm group.
+                    /// </summary>
+                    private readonly Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplate template;
+                    /// <summary>
+                    /// Specifies whether this entry is enabled.
+                    /// </summary>
+                    private readonly bool isEnabled;
+                    /// <summary>
+                    /// Specifies whether this entry is scheduled.
+                    /// </summary>
+                    private readonly bool isScheduled;
+                    /// <summary>
+                    /// Initializes a new instance of the <see cref = "DmsAlarmTemplateGroupEntry"/> class.
+                    /// </summary>
+                    /// <param name = "template">The alarm template.</param>
+                    /// <param name = "isEnabled">Specifies if the entry is enabled.</param>
+                    /// <param name = "isScheduled">Specifies if the entry is scheduled.</param>
+                    internal DmsAlarmTemplateGroupEntry(Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplate template, bool isEnabled, bool isScheduled)
+                    {
+                        if (template == null)
+                        {
+                            throw new System.ArgumentNullException("template");
+                        }
+
+                        this.template = template;
+                        this.isEnabled = isEnabled;
+                        this.isScheduled = isScheduled;
+                    }
+
+                    /// <summary>
+                    /// Gets the alarm template.
+                    /// </summary>
+                    public Skyline.DataMiner.Library.Common.Templates.IDmsAlarmTemplate AlarmTemplate
+                    {
+                        get
+                        {
+                            return template;
+                        }
+                    }
+
+                    /// <summary>
+                    /// Gets a value indicating whether the entry is enabled.
+                    /// </summary>
+                    public bool IsEnabled
+                    {
+                        get
+                        {
+                            return isEnabled;
+                        }
+                    }
+
+                    /// <summary>
+                    /// Gets a value indicating whether the entry is scheduled.
+                    /// </summary>
+                    public bool IsScheduled
+                    {
+                        get
+                        {
+                            return isScheduled;
+                        }
+                    }
+
+                    /// <summary>
+                    /// Returns a string that represents the current object.
+                    /// </summary>
+                    /// <returns>A string that represents the current object.</returns>
+                    public override string ToString()
+                    {
+                        return System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Alarm template group entry:{0}", template.Name);
+                    }
+                }
+
+                /// <summary>
+                /// Represents a standalone alarm template.
+                /// </summary>
+                internal class DmsStandaloneAlarmTemplate : Skyline.DataMiner.Library.Common.Templates.DmsAlarmTemplate, Skyline.DataMiner.Library.Common.Templates.IDmsStandaloneAlarmTemplate
+                {
+                    /// <summary>
+                    /// The description of the alarm definition.
+                    /// </summary>
+                    private string description;
+                    /// <summary>
+                    /// Indicates whether this alarm template is used in a group.
+                    /// </summary>
+                    private bool isUsedInGroup;
+                    /// <summary>
+                    /// Initializes a new instance of the <see cref = "DmsStandaloneAlarmTemplate"/> class.
+                    /// </summary>
+                    /// <param name = "dms">Object implementing the <see cref = "IDms"/> interface.</param>
+                    /// <param name = "name">The name of the alarm template.</param>
+                    /// <param name = "protocol">The protocol this standalone alarm template corresponds with.</param>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "dms"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "name"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "protocol"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentException"><paramref name = "name"/> is the empty string ("") or white space.</exception>
+                    internal DmsStandaloneAlarmTemplate(Skyline.DataMiner.Library.Common.IDms dms, string name, Skyline.DataMiner.Library.Common.IDmsProtocol protocol): base(dms, name, protocol)
+                    {
+                        IsLoaded = false;
+                    }
+
+                    /// <summary>
+                    /// Initializes a new instance of the <see cref = "DmsStandaloneAlarmTemplate"/> class.
+                    /// </summary>
+                    /// <param name = "dms">The DataMiner system reference.</param>
+                    /// <param name = "alarmTemplateEventMessage">An instance of AlarmTemplateEventMessage.</param>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "dms"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentException"><paramref name = "dms"/> is invalid.</exception>
+                    internal DmsStandaloneAlarmTemplate(Skyline.DataMiner.Library.Common.IDms dms, Skyline.DataMiner.Net.Messages.AlarmTemplateEventMessage alarmTemplateEventMessage): base(dms, alarmTemplateEventMessage.Name, alarmTemplateEventMessage.Protocol, alarmTemplateEventMessage.Version)
+                    {
+                        IsLoaded = true;
+                        description = alarmTemplateEventMessage.Description;
+                        isUsedInGroup = alarmTemplateEventMessage.IsUsedInGroup;
+                    }
+
+                    /// <summary>
+                    /// Gets or sets the alarm template description.
+                    /// </summary>
+                    public string Description
+                    {
+                        get
+                        {
+                            LoadOnDemand();
+                            return description;
+                        }
+
+                        set
+                        {
+                            LoadOnDemand();
+                            ChangedPropertyList.Add("Description");
+                            description = value;
+                        }
+                    }
+
+                    /// <summary>
+                    /// Gets a value indicating whether the alarm template is used in a group.
+                    /// </summary>
+                    public bool IsUsedInGroup
+                    {
+                        get
+                        {
+                            LoadOnDemand();
+                            return isUsedInGroup;
+                        }
+                    }
+
+                    /// <summary>
+                    /// Returns a string that represents the current object.
+                    /// </summary>
+                    /// <returns>A string that represents the current object.</returns>
+                    public override string ToString()
+                    {
+                        return System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Alarm Template Name: {0}, Protocol Name: {1}, Protocol Version: {2}", Name, Protocol.Name, Protocol.Version);
+                    }
+
+                    /// <summary>
+                    /// Parses the alarm template event message.
+                    /// </summary>
+                    /// <param name = "message">The message received from SLNet.</param>
+                    internal override void Parse(Skyline.DataMiner.Net.Messages.AlarmTemplateEventMessage message)
+                    {
+                        IsLoaded = true;
+                        description = message.Description;
+                        isUsedInGroup = message.IsUsedInGroup;
+                    }
+                }
+
+                /// <summary>
+                /// Represents an alarm template.
+                /// </summary>
+                internal abstract class DmsTemplate : Skyline.DataMiner.Library.Common.DmsObject
+                {
+                    /// <summary>
+                    /// Alarm template name.
+                    /// </summary>
+                    private readonly string name;
+                    /// <summary>
+                    /// The protocol this alarm template corresponds with.
+                    /// </summary>
+                    private readonly Skyline.DataMiner.Library.Common.IDmsProtocol protocol;
+                    /// <summary>
+                    /// Initializes a new instance of the <see cref = "DmsTemplate"/> class.
+                    /// </summary>
+                    /// <param name = "dms">Object implementing the <see cref = "IDms"/> interface.</param>
+                    /// <param name = "name">The name of the alarm template.</param>
+                    /// <param name = "protocol">Instance of the protocol.</param>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "dms"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "name"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "protocol"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentException"><paramref name = "name"/> is the empty string ("") or white space.</exception>
+                    protected DmsTemplate(Skyline.DataMiner.Library.Common.IDms dms, string name, Skyline.DataMiner.Library.Common.IDmsProtocol protocol): base(dms)
+                    {
+                        if (name == null)
+                        {
+                            throw new System.ArgumentNullException("name");
+                        }
+
+                        if (protocol == null)
+                        {
+                            throw new System.ArgumentNullException("protocol");
+                        }
+
+                        if (System.String.IsNullOrWhiteSpace(name))
+                        {
+                            throw new System.ArgumentException("The name of the template is the empty string (\"\") or white space.");
+                        }
+
+                        this.name = name;
+                        this.protocol = protocol;
+                    }
+
+                    /// <summary>
+                    /// Initializes a new instance of the <see cref = "DmsTemplate"/> class.
+                    /// </summary>
+                    /// <param name = "dms">The DataMiner System reference.</param>
+                    /// <param name = "name">The template name.</param>
+                    /// <param name = "protocolName">The name of the protocol.</param>
+                    /// <param name = "protocolVersion">The version of the protocol.</param>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "dms"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "name"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "protocolName"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "protocolVersion"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentException"><paramref name = "name"/> is the empty string ("") or white space.</exception>
+                    /// <exception cref = "ArgumentException"><paramref name = "protocolName"/> is the empty string ("") or white space.</exception>
+                    /// <exception cref = "ArgumentException"><paramref name = "protocolVersion"/> is the empty string ("") or white space.</exception>
+                    protected DmsTemplate(Skyline.DataMiner.Library.Common.IDms dms, string name, string protocolName, string protocolVersion): base(dms)
+                    {
+                        if (name == null)
+                        {
+                            throw new System.ArgumentNullException("name");
+                        }
+
+                        if (protocolName == null)
+                        {
+                            throw new System.ArgumentNullException("protocolName");
+                        }
+
+                        if (protocolVersion == null)
+                        {
+                            throw new System.ArgumentNullException("protocolVersion");
+                        }
+
+                        if (System.String.IsNullOrWhiteSpace(name))
+                        {
+                            throw new System.ArgumentException("The name of the template is the empty string(\"\") or white space.", "name");
+                        }
+
+                        if (System.String.IsNullOrWhiteSpace(protocolName))
+                        {
+                            throw new System.ArgumentException("The name of the protocol is the empty string (\"\") or white space.", "protocolName");
+                        }
+
+                        if (System.String.IsNullOrWhiteSpace(protocolVersion))
+                        {
+                            throw new System.ArgumentException("The version of the protocol is the empty string (\"\") or white space.", "protocolVersion");
+                        }
+
+                        this.name = name;
+                        protocol = new Skyline.DataMiner.Library.Common.DmsProtocol(dms, protocolName, protocolVersion);
+                    }
+
+                    /// <summary>
+                    /// Gets the template name.
+                    /// </summary>
+                    public string Name
+                    {
+                        get
+                        {
+                            return name;
+                        }
+                    }
+
+                    /// <summary>
+                    /// Gets the protocol this template corresponds with.
+                    /// </summary>
+                    public Skyline.DataMiner.Library.Common.IDmsProtocol Protocol
+                    {
+                        get
+                        {
+                            return protocol;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Represents a trend template.
+                /// </summary>
+                internal class DmsTrendTemplate : Skyline.DataMiner.Library.Common.Templates.DmsTemplate, Skyline.DataMiner.Library.Common.Templates.IDmsTrendTemplate
+                {
+                    /// <summary>
+                    /// Initializes a new instance of the <see cref = "DmsTrendTemplate"/> class.
+                    /// </summary>
+                    /// <param name = "dms">Object implementing the <see cref = "IDms"/> interface.</param>
+                    /// <param name = "name">The name of the alarm template.</param>
+                    /// <param name = "protocol">The instance of the protocol.</param>
+                    /// <exception cref = "ArgumentNullException">Dms is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException">Name is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException">Protocol is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentException"><paramref name = "name"/> is the empty string ("") or white space.</exception>
+                    internal DmsTrendTemplate(Skyline.DataMiner.Library.Common.IDms dms, string name, Skyline.DataMiner.Library.Common.IDmsProtocol protocol): base(dms, name, protocol)
+                    {
+                        IsLoaded = true;
+                    }
+
+                    /// <summary>
+                    /// Initializes a new instance of the <see cref = "DmsTrendTemplate"/> class.
+                    /// </summary>
+                    /// <param name = "dms">Object implementing the <see cref = "IDms"/> interface.</param>
+                    /// <param name = "templateInfo">The template info received by SLNet.</param>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "dms"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException">name is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException">protocolName is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException">protocolVersion is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentException">name is the empty string ("") or white space.</exception>
+                    /// <exception cref = "ArgumentException">ProtocolName is the empty string ("") or white space.</exception>
+                    /// <exception cref = "ArgumentException">ProtocolVersion is the empty string ("") or white space.</exception>
+                    internal DmsTrendTemplate(Skyline.DataMiner.Library.Common.IDms dms, Skyline.DataMiner.Net.Messages.GetTrendingTemplateInfoResponseMessage templateInfo): base(dms, templateInfo.Name, templateInfo.Protocol, templateInfo.Version)
+                    {
+                        IsLoaded = true;
+                    }
+
+                    /// <summary>
+                    /// Initializes a new instance of the <see cref = "DmsTrendTemplate"/> class.
+                    /// </summary>
+                    /// <param name = "dms">Object implementing the <see cref = "IDms"/> interface.</param>
+                    /// <param name = "templateInfo">The template info received by SLNet.</param>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "dms"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException">Name is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException">ProtocolName is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException">ProtocolVersion is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentException">Name is the empty string ("") or white space.</exception>
+                    /// <exception cref = "ArgumentException">ProtocolName is the empty string ("") or white space.</exception>
+                    /// <exception cref = "ArgumentException">ProtocolVersion is the empty string ("") or white space.</exception>
+                    internal DmsTrendTemplate(Skyline.DataMiner.Library.Common.IDms dms, Skyline.DataMiner.Net.Messages.TrendTemplateMetaInfo templateInfo): base(dms, templateInfo.Name, templateInfo.ProtocolName, templateInfo.ProtocolVersion)
+                    {
+                        IsLoaded = true;
+                    }
+
+                    /// <summary>
+                    /// Returns a string that represents the current object.
+                    /// </summary>
+                    /// <returns>A string that represents the current object.</returns>
+                    public override string ToString()
+                    {
+                        return System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Trend Template Name: {0}, Protocol Name: {1}, Protocol Version: {2}", Name, Protocol.Name, Protocol.Version);
+                    }
+
+                    /// <summary>
+                    /// Loads this object.
+                    /// </summary>
+                    internal override void Load()
+                    {
+                    }
+                }
+
                 /// <summary>
                 /// DataMiner alarm template interface.
                 /// </summary>
@@ -5686,6 +9607,419 @@ namespace Skyline.DataMiner
             }
 
             /// <summary>
+            /// Represents a DataMiner view.
+            /// </summary>
+            internal class DmsView : Skyline.DataMiner.Library.Common.DmsObject, Skyline.DataMiner.Library.Common.IDmsView
+            {
+                /// <summary>
+                /// The child views.
+                /// </summary>
+                private readonly System.Collections.Generic.List<Skyline.DataMiner.Library.Common.IDmsView> childViews = new System.Collections.Generic.List<Skyline.DataMiner.Library.Common.IDmsView>();
+                /// <summary>
+                /// The elements that are part of this view.
+                /// </summary>
+                private readonly System.Collections.Generic.List<Skyline.DataMiner.Library.Common.IDmsElement> elements = new System.Collections.Generic.List<Skyline.DataMiner.Library.Common.IDmsElement>();
+                /// <summary>
+                /// The properties.
+                /// </summary>
+                private readonly System.Collections.Generic.IDictionary<System.String, Skyline.DataMiner.Library.Common.Properties.DmsViewProperty> properties = new System.Collections.Generic.Dictionary<System.String, Skyline.DataMiner.Library.Common.Properties.DmsViewProperty>();
+                /// <summary>
+                /// The names of updated properties.
+                /// </summary>
+                private readonly System.Collections.Generic.HashSet<System.String> updatedProperties = new System.Collections.Generic.HashSet<System.String>();
+                /// <summary>
+                /// The display string.
+                /// </summary>
+                private string display = System.String.Empty;
+                /// <summary>
+                /// ID of the view.
+                /// </summary>
+                private int id = -1;
+                /// <summary>
+                /// The parent view.
+                /// </summary>
+                private Skyline.DataMiner.Library.Common.IDmsView parentView;
+                /// <summary>
+                /// The name of the view.
+                /// </summary>
+                private string name;
+                private bool isNameLoaded;
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "DmsView"/> class.
+                /// </summary>
+                /// <param name = "dms">Object implementing the <see cref = "IDms"/> interface.</param>
+                /// <param name = "viewId">The ID of the view.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "dms"/> is <see langword = "null"/>.</exception>
+                internal DmsView(Skyline.DataMiner.Library.Common.IDms dms, int viewId): base(dms)
+                {
+                    id = viewId;
+                    IsLoaded = false;
+                    isNameLoaded = false;
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "DmsView"/> class.
+                /// </summary>
+                /// <param name = "dms">Object implementing the <see cref = "IDms"/> interface.</param>
+                /// <param name = "id">The ID of the view.</param>
+                /// <param name = "name">The name of the view.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "dms"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentNullException"><paramref name = "name"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException"><paramref name = "name">is empty or white space.</paramref></exception>
+                internal DmsView(Skyline.DataMiner.Library.Common.IDms dms, int id, string name): base(dms)
+                {
+                    if (name == null)
+                    {
+                        throw new System.ArgumentNullException("name");
+                    }
+
+                    if (System.String.IsNullOrWhiteSpace(name))
+                    {
+                        throw new System.ArgumentException("Provided name must not be empty or white space", "name");
+                    }
+
+                    this.id = id;
+                    this.name = name;
+                    IsLoaded = false;
+                    isNameLoaded = true;
+                }
+
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "DmsView"/> class.
+                /// </summary>
+                /// <param name = "dms">Instance of the DataMinerSystem class.</param>
+                /// <param name = "viewInfo">The view info.</param>
+                internal DmsView(Skyline.DataMiner.Library.Common.Dms dms, Skyline.DataMiner.Net.Messages.ViewInfoEventMessage viewInfo): base(dms)
+                {
+                    Parse(viewInfo);
+                    // Remove the properties that are added to the change list because of initialization.
+                    ClearChangeList();
+                }
+
+                /// <summary>
+                /// Gets all child views.
+                /// </summary>
+                /// <value>The child views.</value>
+                public System.Collections.Generic.IList<Skyline.DataMiner.Library.Common.IDmsView> ChildViews
+                {
+                    get
+                    {
+                        LoadOnDemand();
+                        return childViews.AsReadOnly();
+                    }
+                }
+
+                /// <summary>
+                /// Gets the display string.
+                /// </summary>
+                /// <value>The display string.</value>
+                public string Display
+                {
+                    get
+                    {
+                        LoadOnDemand();
+                        return display;
+                    }
+                }
+
+                /// <summary>
+                /// Gets all elements contained in this view.
+                /// </summary>
+                /// <value>The elements contained in this view.</value>
+                public System.Collections.Generic.IList<Skyline.DataMiner.Library.Common.IDmsElement> Elements
+                {
+                    get
+                    {
+                        LoadOnDemand();
+                        return elements.AsReadOnly();
+                    }
+                }
+
+                /// <summary>
+                /// Gets the ID of this view.
+                /// </summary>
+                /// <value>The view ID.</value>
+                public int Id
+                {
+                    get
+                    {
+                        return id;
+                    }
+                }
+
+                /// <summary>
+                /// Gets or sets the name of the view.
+                /// </summary>
+                /// <value>The view name.</value>
+                /// <exception cref = "ArgumentNullException">The value of a set operation is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException">The value of a set operation is invalid.</exception>
+                /// <remarks>
+                /// <para>The following restrictions apply to view names:</para>
+                /// <list type = "bullet">
+                /// <item><para>Must not be empty ("") or white space.</para></item>
+                /// <item><para>Must not exceed 200 characters.</para></item>
+                /// <item><para>Names may not start or end with the following characters: '.' (dot), ' ' (space).</para></item>
+                /// <item><para>Names may not contain the following character: '|' (pipe).</para></item>
+                /// <item><para>The following characters may not occur more than once within a name: '%' (percentage).</para></item>
+                /// </list>
+                /// </remarks>
+                public string Name
+                {
+                    get
+                    {
+                        if (!isNameLoaded)
+                        {
+                            LoadOnDemand();
+                        }
+
+                        return name;
+                    }
+
+                    set
+                    {
+                        string validatedViewName = Skyline.DataMiner.Library.Common.InputValidator.ValidateViewName(value, "value");
+                        if (!isNameLoaded)
+                        {
+                            LoadOnDemand();
+                        }
+
+                        if (!name.Equals(validatedViewName, System.StringComparison.Ordinal))
+                        {
+                            ChangedPropertyList.Add("Name");
+                            name = validatedViewName;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Gets or sets the parent view.
+                /// </summary>
+                /// <value>The parent view.</value>
+                /// <exception cref = "ArgumentNullException">The value of a set operation is <see langword = "null"/>.</exception>
+                /// <exception cref = "NotSupportedException">The root view cannot be assigned a parent view.</exception>
+                /// <exception cref = "NotSupportedException">The parent of a view must not be a self-reference.</exception>
+                public Skyline.DataMiner.Library.Common.IDmsView Parent
+                {
+                    get
+                    {
+                        LoadOnDemand();
+                        return parentView;
+                    }
+
+                    set
+                    {
+                        if (value == null)
+                        {
+                            throw new System.ArgumentNullException("value");
+                        }
+
+                        if (Id == -1)
+                        {
+                            throw new System.NotSupportedException("The root view cannot be assigned a parent view.");
+                        }
+
+                        LoadOnDemand();
+                        if (value.Id == this.Id)
+                        {
+                            throw new System.NotSupportedException("The parent of a view must not be a self-reference.");
+                        }
+
+                        if (parentView != value)
+                        {
+                            ChangedPropertyList.Add("ParentView");
+                            parentView = value;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Gets the properties of this view.
+                /// </summary>
+                /// <value>The view properties.</value>
+                public Skyline.DataMiner.Library.Common.IPropertyCollection<Skyline.DataMiner.Library.Common.Properties.IDmsViewProperty, Skyline.DataMiner.Library.Common.Properties.IDmsViewPropertyDefinition> Properties
+                {
+                    get
+                    {
+                        LoadOnDemand();
+                        System.Collections.Generic.IDictionary<System.String, Skyline.DataMiner.Library.Common.Properties.IDmsViewProperty> copy = new System.Collections.Generic.Dictionary<System.String, Skyline.DataMiner.Library.Common.Properties.IDmsViewProperty>(properties.Count);
+                        foreach (System.Collections.Generic.KeyValuePair<System.String, Skyline.DataMiner.Library.Common.Properties.DmsViewProperty> kvp in properties)
+                        {
+                            copy.Add(kvp.Key, kvp.Value);
+                        }
+
+                        return new Skyline.DataMiner.Library.Common.PropertyCollection<Skyline.DataMiner.Library.Common.Properties.IDmsViewProperty, Skyline.DataMiner.Library.Common.Properties.IDmsViewPropertyDefinition>(copy);
+                    }
+                }
+
+                /// <summary>
+                /// Returns a string that represents the current object.
+                /// </summary>
+                /// <returns>A string that represents the current object.</returns>
+                public override string ToString()
+                {
+                    return System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "View name: {0}, ID: {1}", Name, Id);
+                }
+
+                /// <summary>
+                /// Loads the content of the view.
+                /// All of the properties.
+                /// All of the elements in the view.
+                /// </summary>
+                /// <exception cref = "ViewNotFoundException">No view with the specified ID exists in the DataMiner System.</exception>
+                internal override void Load()
+                {
+                    try
+                    {
+                        IsLoaded = true;
+                        isNameLoaded = true;
+                        Skyline.DataMiner.Net.Messages.ViewInfoEventMessage infoEvent = null;
+                        Skyline.DataMiner.Net.Messages.GetInfoMessage message = new Skyline.DataMiner.Net.Messages.GetInfoMessage{Type = Skyline.DataMiner.Net.Messages.InfoType.ViewInfo};
+                        Skyline.DataMiner.Net.Messages.DMSMessage[] responses = Communication.SendMessage(message);
+                        foreach (Skyline.DataMiner.Net.Messages.DMSMessage response in responses)
+                        {
+                            Skyline.DataMiner.Net.Messages.ViewInfoEventMessage viewInfo = (Skyline.DataMiner.Net.Messages.ViewInfoEventMessage)response;
+                            if (viewInfo.ID.Equals(Id))
+                            {
+                                infoEvent = viewInfo;
+                                break;
+                            }
+                        }
+
+                        if (infoEvent != null)
+                        {
+                            Parse(infoEvent);
+                        }
+                        else
+                        {
+                            throw new Skyline.DataMiner.Library.Common.ViewNotFoundException(id);
+                        }
+                    }
+                    catch (Skyline.DataMiner.Net.Exceptions.DataMinerException)
+                    {
+                        IsLoaded = false;
+                        isNameLoaded = false;
+                        throw;
+                    }
+                }
+
+                internal void PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+                {
+                    updatedProperties.Add(e.PropertyName);
+                }
+
+                /// <summary>
+                /// Parses the view info event message.
+                /// </summary>
+                /// <param name = "viewInfo">The view info event message.</param>
+                internal void Parse(Skyline.DataMiner.Net.Messages.ViewInfoEventMessage viewInfo)
+                {
+                    IsLoaded = true;
+                    isNameLoaded = true;
+                    try
+                    {
+                        ParseView(viewInfo);
+                        ParseChildViews(viewInfo);
+                        ParseChildElements(viewInfo);
+                        ParseProperties(viewInfo);
+                    }
+                    catch
+                    {
+                        IsLoaded = false;
+                        isNameLoaded = false;
+                        throw;
+                    }
+                }
+
+                /// <summary>
+                /// Clears the property changed list.
+                /// </summary>
+                private void ClearChangeList()
+                {
+                    updatedProperties.Clear();
+                }
+
+                /// <summary>
+                /// Parses the view.
+                /// </summary>
+                /// <param name = "viewInfo">The view information.</param>
+                private void ParseView(Skyline.DataMiner.Net.Messages.ViewInfoEventMessage viewInfo)
+                {
+                    name = viewInfo.Name;
+                    id = viewInfo.ID;
+                    display = viewInfo.DisplayName;
+                    parentView = Id == -1 ? null : new Skyline.DataMiner.Library.Common.DmsView(dms, viewInfo.ParentId);
+                }
+
+                /// <summary>
+                /// Parses the child view.
+                /// </summary>
+                /// <param name = "viewInfo">The view information.</param>
+                private void ParseChildViews(Skyline.DataMiner.Net.Messages.ViewInfoEventMessage viewInfo)
+                {
+                    if (viewInfo.DirectChildViews != null)
+                    {
+                        foreach (int viewID in viewInfo.DirectChildViews)
+                        {
+                            Skyline.DataMiner.Library.Common.DmsView childView = new Skyline.DataMiner.Library.Common.DmsView(dms, viewID);
+                            childViews.Add(childView);
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Parses the child view.
+                /// </summary>
+                /// <param name = "viewInfo">The view information.</param>
+                private void ParseChildElements(Skyline.DataMiner.Net.Messages.ViewInfoEventMessage viewInfo)
+                {
+                    if (viewInfo.Elements != null)
+                    {
+                        foreach (string identifier in viewInfo.Elements)
+                        {
+                            Skyline.DataMiner.Library.Common.DmsElementId dmaEid = new Skyline.DataMiner.Library.Common.DmsElementId(identifier);
+                            Skyline.DataMiner.Library.Common.DmsElement element = new Skyline.DataMiner.Library.Common.DmsElement(dms, dmaEid);
+                            elements.Add(element);
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Parses the view properties.
+                /// </summary>
+                /// <param name = "viewInfo">The view information.</param>
+                private void ParseProperties(Skyline.DataMiner.Net.Messages.ViewInfoEventMessage viewInfo)
+                {
+                    properties.Clear();
+                    foreach (Skyline.DataMiner.Library.Common.Properties.IDmsViewPropertyDefinition definition in Dms.ViewPropertyDefinitions)
+                    {
+                        Skyline.DataMiner.Net.Messages.PropertyInfo info = null;
+                        if (viewInfo.Properties != null)
+                        {
+                            info = System.Linq.Enumerable.FirstOrDefault(viewInfo.Properties, p => p.Name.Equals(definition.Name, System.StringComparison.OrdinalIgnoreCase));
+                            System.Collections.Generic.List<System.String> duplicates = System.Linq.Enumerable.ToList(System.Linq.Enumerable.Select(System.Linq.Enumerable.Where(System.Linq.Enumerable.GroupBy(viewInfo.Properties, p => p.Name), g => System.Linq.Enumerable.Count(g) > 1), g => g.Key));
+                            if (System.Linq.Enumerable.Any(duplicates))
+                            {
+                                string message = "Duplicate view properties detected. View \"" + viewInfo.Name + "\" (" + viewInfo.ID + "), duplicate properties: " + System.String.Join(", ", duplicates) + ".";
+                                Skyline.DataMiner.Library.Common.Logger.Log(message);
+                            }
+                        }
+
+                        string propertyValue = info != null ? info.Value : System.String.Empty;
+                        if (definition.IsReadOnly)
+                        {
+                            properties.Add(definition.Name, new Skyline.DataMiner.Library.Common.Properties.DmsViewProperty(this, definition, propertyValue));
+                        }
+                        else
+                        {
+                            var property = new Skyline.DataMiner.Library.Common.Properties.DmsWritableViewProperty(this, definition, propertyValue);
+                            properties.Add(definition.Name, property);
+                            property.PropertyChanged += this.PropertyChanged;
+                        }
+                    }
+                }
+            }
+
+            /// <summary>
             /// DataMiner view interface.
             /// </summary>
             public interface IDmsView : Skyline.DataMiner.Library.Common.IDmsObject, Skyline.DataMiner.Library.Common.IUpdateable
@@ -5771,8 +10105,393 @@ namespace Skyline.DataMiner
                 }
             }
 
+            /// <summary>
+            /// Represents a table.
+            /// </summary>
+            internal class DmsTable : Skyline.DataMiner.Library.Common.IDmsTable
+            {
+                /// <summary>
+                /// The element this table belongs to.
+                /// </summary>
+                private readonly Skyline.DataMiner.Library.Common.IDmsElement element;
+                /// <summary>
+                /// The table parameter ID.
+                /// </summary>
+                private readonly int id;
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "DmsTable"/> class.
+                /// </summary>
+                /// <param name = "element">The element this table belongs to.</param>
+                /// <param name = "id">The table parameter ID.</param>
+                internal DmsTable(Skyline.DataMiner.Library.Common.IDmsElement element, int id)
+                {
+                    this.element = element;
+                    this.id = id;
+                }
+
+                /// <summary>
+                /// Gets the element this table is part of.
+                /// </summary>
+                /// <value>The element this table is part of.</value>
+                public Skyline.DataMiner.Library.Common.IDmsElement Element
+                {
+                    get
+                    {
+                        return element;
+                    }
+                }
+
+                /// <summary>
+                /// Gets the table parameter ID.
+                /// </summary>
+                /// <value>The table parameter ID.</value>
+                public int Id
+                {
+                    get
+                    {
+                        return id;
+                    }
+                }
+
+                /// <summary>
+                /// Adds the provided row to this table.
+                /// </summary>
+                /// <param name = "data">The row data.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "data"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ElementStoppedException">The element is stopped.</exception>
+                /// <exception cref = "ElementNotFoundException">The element was not found in the DataMiner System.</exception>
+                /// <exception cref = "IncorrectDataException">Invalid data was provided.</exception>
+                public void AddRow(object[] data)
+                {
+                    if (data == null)
+                    {
+                        throw new System.ArgumentNullException("data");
+                    }
+
+                    Skyline.DataMiner.Library.Common.HelperClass.CheckElementState(element);
+                    try
+                    {
+                        Skyline.DataMiner.Net.Messages.Advanced.SetDataMinerInfoMessage message = new Skyline.DataMiner.Net.Messages.Advanced.SetDataMinerInfoMessage{DataMinerID = element.AgentId, ElementID = element.Id, What = 149, Var1 = new uint[]{(uint)element.AgentId, (uint)element.Id, (uint)id}, Var2 = data};
+                        element.Host.Dms.Communication.SendSingleResponseMessage(message);
+                    }
+                    catch (Skyline.DataMiner.Net.Exceptions.DataMinerCOMException e)
+                    {
+                        if (e.ErrorCode == -2147220718)
+                        {
+                            // 0x80040312, Unknown destination DataMiner specified.
+                            throw new Skyline.DataMiner.Library.Common.ElementNotFoundException(element.DmsElementId, e);
+                        }
+                        else if (e.ErrorCode == -2147220916)
+                        {
+                            // 0x8004024C, SL_NO_SUCH_ELEMENT, "The element is unknown."
+                            throw new Skyline.DataMiner.Library.Common.ElementNotFoundException(element.DmsElementId, e);
+                        }
+                        else if (e.ErrorCode == -2147220959)
+                        {
+                            // 0x80040221, SL_INVALID_DATA, "Invalid data".
+                            string message = System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Invalid data - element: '{0}', table ID: '{1}', data: [{2}]", element.DmsElementId.Value, Id, System.String.Join(",", data));
+                            throw new Skyline.DataMiner.Library.Common.IncorrectDataException(message);
+                        }
+                        else
+                        {
+                            throw;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Determines whether a row with the specified primary key exists in the table.
+                /// </summary>
+                /// <param name = "primaryKey">The primary key of the row.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "primaryKey"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException"><paramref name = "primaryKey"/> is the empty string ("") or white space.</exception>
+                /// <exception cref = "IncorrectDataException">The provided data is invalid.</exception>
+                /// <exception cref = "ElementStoppedException">The element is stopped.</exception>
+                /// <exception cref = "ElementNotFoundException">The element was not found in the DataMiner System.</exception>
+                /// <returns><c>true</c> if the table contains a row with the specified primary key; otherwise, <c>false</c>.</returns>
+                public bool RowExists(string primaryKey)
+                {
+                    if (primaryKey == null)
+                    {
+                        throw new System.ArgumentNullException("primaryKey");
+                    }
+
+                    if (System.String.IsNullOrWhiteSpace(primaryKey))
+                    {
+                        throw new System.ArgumentException("The provided primary key must not be the empty string (\"\") or white space.", "primaryKey");
+                    }
+
+                    Skyline.DataMiner.Library.Common.HelperClass.CheckElementState(Element);
+                    try
+                    {
+                        bool rowExists = false;
+                        Skyline.DataMiner.Net.Messages.Advanced.SetDataMinerInfoMessage message = new Skyline.DataMiner.Net.Messages.Advanced.SetDataMinerInfoMessage{DataMinerID = element.AgentId, ElementID = element.Id, What = 163, Var1 = new uint[]{(uint)element.AgentId, (uint)element.Id, (uint)Id}, Var2 = primaryKey};
+                        Skyline.DataMiner.Net.Messages.DMSMessage response = element.Host.Dms.Communication.SendSingleResponseMessage(message);
+                        Skyline.DataMiner.Net.Messages.Advanced.SetDataMinerInfoResponseMessage responseMessage = (Skyline.DataMiner.Net.Messages.Advanced.SetDataMinerInfoResponseMessage)response;
+                        int position = (int)responseMessage.RawData;
+                        if (position > 0)
+                        {
+                            rowExists = true;
+                        }
+
+                        return rowExists;
+                    }
+                    catch (Skyline.DataMiner.Net.Exceptions.DataMinerCOMException e)
+                    {
+                        if (e.ErrorCode == -2147220718)
+                        {
+                            // 0x80040312, Unknown destination DataMiner specified.
+                            throw new Skyline.DataMiner.Library.Common.ElementNotFoundException(element.DmsElementId, e);
+                        }
+                        else if (e.ErrorCode == -2147220916)
+                        {
+                            // 0x8004024C, SL_NO_SUCH_ELEMENT, "The element is unknown."
+                            throw new Skyline.DataMiner.Library.Common.ElementNotFoundException(element.DmsElementId, e);
+                        }
+                        else if (e.ErrorCode == -2147220959)
+                        {
+                            // 0x80040221, SL_INVALID_DATA, "Invalid data".
+                            string message = System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Invalid data - element: '{0}', table ID: '{1}', primary key: \"{2}\"", element.DmsElementId.Value, Id, primaryKey);
+                            throw new Skyline.DataMiner.Library.Common.IncorrectDataException(message);
+                        }
+                        else
+                        {
+                            throw;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Updates the row with the provided data.
+                /// </summary>
+                /// <param name = "primaryKey">The primary key of the row that must be updated.</param>
+                /// <param name = "data">The new row data.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "primaryKey"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentNullException"><paramref name = "data"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException">The provided primary key is the empty string ("") or white space.</exception>
+                /// <exception cref = "ParameterNotFoundException">The table parameter was not found.</exception>
+                /// <exception cref = "ElementStoppedException">The element is stopped.</exception>
+                /// <exception cref = "ElementNotFoundException">The element was not found in the DataMiner System.</exception>
+                public void SetRow(string primaryKey, object[] data)
+                {
+                    if (primaryKey == null)
+                    {
+                        throw new System.ArgumentNullException("primaryKey");
+                    }
+
+                    if (data == null)
+                    {
+                        throw new System.ArgumentNullException("data");
+                    }
+
+                    if (System.String.IsNullOrWhiteSpace(primaryKey))
+                    {
+                        throw new System.ArgumentException("The provided primary key must not be the empty string (\"\") or white space.", "primaryKey");
+                    }
+
+                    Skyline.DataMiner.Library.Common.HelperClass.CheckElementState(Element);
+                    try
+                    {
+                        object[] ids = new object[4];
+                        ids[0] = element.AgentId;
+                        ids[1] = element.Id;
+                        ids[2] = id;
+                        ids[3] = primaryKey;
+                        Skyline.DataMiner.Net.Messages.Advanced.SetDataMinerInfoMessage message = new Skyline.DataMiner.Net.Messages.Advanced.SetDataMinerInfoMessage{DataMinerID = element.AgentId, ElementID = element.Id, What = 225, Var1 = ids, Var2 = data};
+                        element.Host.Dms.Communication.SendSingleResponseMessage(message);
+                    }
+                    catch (Skyline.DataMiner.Net.Exceptions.DataMinerCOMException e)
+                    {
+                        if (e.ErrorCode == -2147220718)
+                        {
+                            // 0x80040312, Unknown destination DataMiner specified.
+                            throw new Skyline.DataMiner.Library.Common.ElementNotFoundException(element.DmsElementId, e);
+                        }
+                        else if (e.ErrorCode == -2147220935)
+                        {
+                            // 0x80040239, SL_FAILED_NOT_FOUND, The object or file was not found.
+                            throw new Skyline.DataMiner.Library.Common.ParameterNotFoundException(Id, element.DmsElementId, e);
+                        }
+                        else if (e.ErrorCode == -2147220916)
+                        {
+                            // 0x8004024C, SL_NO_SUCH_ELEMENT, "The element is unknown."
+                            throw new Skyline.DataMiner.Library.Common.ElementNotFoundException(element.DmsElementId, e);
+                        }
+                        else
+                        {
+                            throw;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Returns a string that represents the current object.
+                /// </summary>
+                /// <returns>A string that represents the current object.</returns>
+                public override string ToString()
+                {
+                    return System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Table Parameter:{0}", id);
+                }
+            }
+
+            /// <summary>
+            /// DataMiner table interface.
+            /// </summary>
+            public interface IDmsTable
+            {
+                /// <summary>
+                /// Gets the element this table is part of.
+                /// </summary>
+                /// <value>The element this table is part of.</value>
+                Skyline.DataMiner.Library.Common.IDmsElement Element
+                {
+                    get;
+                }
+
+                /// <summary>
+                /// Gets the table parameter ID.
+                /// </summary>
+                /// <value>The table parameter ID.</value>
+                int Id
+                {
+                    get;
+                }
+
+                /// <summary>
+                /// Adds the provided row to this table.
+                /// </summary>
+                /// <param name = "data">The row data.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "data"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ElementStoppedException">The element is stopped.</exception>
+                /// <exception cref = "ElementNotFoundException">The element was not found in the DataMiner System.</exception>
+                /// <exception cref = "IncorrectDataException">Invalid data was provided.</exception>
+                void AddRow(object[] data);
+                /// <summary>
+                /// Determines whether a row with the specified primary key exists in the table.
+                /// </summary>
+                /// <param name = "primaryKey">The primary key of the row.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "primaryKey"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException"><paramref name = "primaryKey"/> is the empty string ("") or white space.</exception>
+                /// <exception cref = "IncorrectDataException">The provided data is invalid.</exception>
+                /// <exception cref = "ElementStoppedException">The element is stopped.</exception>
+                /// <exception cref = "ElementNotFoundException">The element was not found in the DataMiner System.</exception>
+                /// <returns><c>true</c> if the table contains a row with the specified primary key; otherwise, <c>false</c>.</returns>
+                bool RowExists(string primaryKey);
+                /// <summary>
+                /// Updates the row with the provided data.
+                /// </summary>
+                /// <param name = "primaryKey">The primary key of the row that must be updated.</param>
+                /// <param name = "data">The new row data.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "primaryKey"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentNullException"><paramref name = "data"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentException">The provided primary key is the empty string ("") or white space.</exception>
+                /// <exception cref = "ParameterNotFoundException">The table parameter was not found.</exception>
+                /// <exception cref = "ElementStoppedException">The element is stopped.</exception>
+                /// <exception cref = "ElementNotFoundException">The element was not found in the DataMiner System.</exception>
+                void SetRow(string primaryKey, object[] data);
+            }
+
             namespace Properties
             {
+                /// <summary>
+                /// Represents a DMS element property.
+                /// </summary>
+                internal class DmsElementProperty : Skyline.DataMiner.Library.Common.Properties.DmsProperty<Skyline.DataMiner.Library.Common.Properties.IDmsElementPropertyDefinition>, Skyline.DataMiner.Library.Common.Properties.IDmsElementProperty
+                {
+                    /// <summary>
+                    /// The element to which the property belongs.
+                    /// </summary>
+                    private readonly Skyline.DataMiner.Library.Common.IDmsElement element;
+                    /// <summary>
+                    /// Initializes a new instance of the <see cref = "DmsElementProperty"/> class.
+                    /// </summary>
+                    /// <param name = "element">The element to which the property is assigned.</param>
+                    /// <param name = "definition">The definition of the property.</param>
+                    /// <param name = "value">The current value of the property.</param>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "element"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "definition"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "value"/> is <see langword = "null"/>.</exception>
+                    public DmsElementProperty(Skyline.DataMiner.Library.Common.IDmsElement element, Skyline.DataMiner.Library.Common.Properties.IDmsElementPropertyDefinition definition, string value): base(definition, value)
+                    {
+                        if (element == null)
+                        {
+                            throw new System.ArgumentNullException("element");
+                        }
+
+                        this.element = element;
+                    }
+
+                    /// <summary>
+                    /// Gets the element to which the property is assigned.
+                    /// </summary>
+                    public Skyline.DataMiner.Library.Common.IDmsElement Element
+                    {
+                        get
+                        {
+                            return element;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Represents a DMS property.
+                /// </summary>
+                internal class DmsProperty<T> : Skyline.DataMiner.Library.Common.Properties.IDmsProperty<T> where T : Skyline.DataMiner.Library.Common.Properties.IDmsPropertyDefinition
+                {
+                    /// <summary>
+                    /// The definition of the property.
+                    /// </summary>
+                    protected readonly T definition;
+                    /// <summary>
+                    /// The value of the property.
+                    /// </summary>
+                    protected string value;
+                    /// <summary>
+                    /// Initializes a new instance of the <see cref = "DmsProperty{T}"/> class.
+                    /// </summary>
+                    /// <param name = "definition">The definition of the property.</param>
+                    /// <param name = "value">The current value of the property.</param>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "definition"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "value"/> is <see langword = "null"/>.</exception>
+                    protected DmsProperty(T definition, string value)
+                    {
+                        if (System.Collections.Generic.EqualityComparer<T>.Default.Equals(definition, default(T)))
+                        {
+                            throw new System.ArgumentNullException("definition");
+                        }
+
+                        if (value == null)
+                        {
+                            throw new System.ArgumentNullException("value");
+                        }
+
+                        this.definition = definition;
+                        this.value = value;
+                    }
+
+                    /// <summary>
+                    /// Gets the definition of the property.
+                    /// </summary>
+                    public T Definition
+                    {
+                        get
+                        {
+                            return definition;
+                        }
+                    }
+
+                    /// <summary>
+                    /// Gets the value of the property.
+                    /// </summary>
+                    public string Value
+                    {
+                        get
+                        {
+                            return value;
+                        }
+                    }
+                }
+
                 /// <summary>
                 /// Entry class for the discrete entries associated with a property definition.
                 /// </summary>
@@ -5836,6 +10555,155 @@ namespace Skyline.DataMiner
                     public override string ToString()
                     {
                         return System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "Property Entry:<{0};{1}>", value, metric);
+                    }
+                }
+
+                /// <summary>
+                /// Represents a DMS property.
+                /// </summary>
+                internal class DmsViewProperty : Skyline.DataMiner.Library.Common.Properties.DmsProperty<Skyline.DataMiner.Library.Common.Properties.IDmsViewPropertyDefinition>, Skyline.DataMiner.Library.Common.Properties.IDmsViewProperty
+                {
+                    /// <summary>
+                    /// The view to which the property is assigned.
+                    /// </summary>
+                    private readonly Skyline.DataMiner.Library.Common.IDmsView view;
+                    /// <summary>
+                    /// Initializes a new instance of the <see cref = "DmsViewProperty"/> class.
+                    /// </summary>
+                    /// <param name = "view">The view to which the property is assigned.</param>
+                    /// <param name = "definition">The definition of the property.</param>
+                    /// <param name = "value">The current value of the property.</param>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "definition"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "value"/> is <see langword = "null"/>.</exception>
+                    internal DmsViewProperty(Skyline.DataMiner.Library.Common.IDmsView view, Skyline.DataMiner.Library.Common.Properties.IDmsViewPropertyDefinition definition, string value): base(definition, value)
+                    {
+                        if (view == null)
+                        {
+                            throw new System.ArgumentNullException("view");
+                        }
+
+                        this.view = view;
+                    }
+
+                    /// <summary>
+                    /// Gets the view to which the property is assigned.
+                    /// </summary>
+                    public Skyline.DataMiner.Library.Common.IDmsView View
+                    {
+                        get
+                        {
+                            return view;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Represents a writable DataMiner system element property.
+                /// </summary>
+                internal class DmsWritableElementProperty : Skyline.DataMiner.Library.Common.Properties.DmsElementProperty, Skyline.DataMiner.Library.Common.Properties.IWritableProperty
+                {
+                    /// <summary>
+                    /// Initializes a new instance of the <see cref = "DmsWritableElementProperty"/> class.
+                    /// </summary>
+                    /// <param name = "element">The element to which the property is assigned.</param>
+                    /// <param name = "definition">The definition of the property.</param>
+                    /// <param name = "value">The current value of the property.</param>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "element"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "definition"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "value"/> is <see langword = "null"/>.</exception>
+                    public DmsWritableElementProperty(Skyline.DataMiner.Library.Common.IDmsElement element, Skyline.DataMiner.Library.Common.Properties.IDmsElementPropertyDefinition definition, string value): base(element, definition, value)
+                    {
+                    }
+
+                    /// <summary>
+                    /// Occurs when a property value changes.
+                    /// </summary>
+                    public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
+                    /// <summary>
+                    /// Gets or sets the value of the property.
+                    /// </summary>
+                    /// <exception cref = "ArgumentException">Thrown when the value can not be added to the property.</exception>
+                    public new string Value
+                    {
+                        get
+                        {
+                            return value;
+                        }
+
+                        set
+                        {
+                            if (!definition.IsValidInput(value))
+                            {
+                                throw new System.ArgumentException(System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "The value:'{0}' is not valid for the property", value));
+                            }
+
+                            this.value = value;
+                            NotifyPropertyChanged();
+                        }
+                    }
+
+                    private void NotifyPropertyChanged()
+                    {
+                        System.ComponentModel.PropertyChangedEventHandler handler = PropertyChanged;
+                        if (handler != null)
+                        {
+                            handler.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(definition.Name));
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Represents a DMS property.
+                /// </summary>
+                internal class DmsWritableViewProperty : Skyline.DataMiner.Library.Common.Properties.DmsViewProperty, Skyline.DataMiner.Library.Common.Properties.IWritableProperty
+                {
+                    /// <summary>
+                    /// Initializes a new instance of the <see cref = "DmsWritableViewProperty"/> class.
+                    /// </summary>
+                    /// <param name = "view">The view to which this property belongs.</param>
+                    /// <param name = "definition">The definition of the property.</param>
+                    /// <param name = "value">The current value of the property.</param>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "view"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "definition"/> is <see langword = "null"/>.</exception>
+                    /// <exception cref = "ArgumentNullException"><paramref name = "value"/> is <see langword = "null"/>.</exception>
+                    public DmsWritableViewProperty(Skyline.DataMiner.Library.Common.IDmsView view, Skyline.DataMiner.Library.Common.Properties.IDmsViewPropertyDefinition definition, string value): base(view, definition, value)
+                    {
+                    }
+
+                    /// <summary>
+                    /// Occurs when the value of a property changes.
+                    /// </summary>
+                    public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
+                    /// <summary>
+                    /// Gets or sets the value of the property.
+                    /// </summary>
+                    /// <exception cref = "ArgumentException">Thrown when the value can not be added to the property.</exception>
+                    public new string Value
+                    {
+                        get
+                        {
+                            return value;
+                        }
+
+                        set
+                        {
+                            if (!definition.IsValidInput(value))
+                            {
+                                throw new System.ArgumentException(System.String.Format(System.Globalization.CultureInfo.InvariantCulture, "The value:'{0}' is not valid for the property", value));
+                            }
+
+                            this.value = value;
+                            NotifyPropertyChanged();
+                        }
+                    }
+
+                    private void NotifyPropertyChanged()
+                    {
+                        System.ComponentModel.PropertyChangedEventHandler handler = PropertyChanged;
+                        if (handler != null)
+                        {
+                            handler.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(definition.Name));
+                        }
                     }
                 }
 
@@ -5924,6 +10792,21 @@ namespace Skyline.DataMiner
                     Skyline.DataMiner.Library.Common.IDmsView View
                     {
                         get;
+                    }
+                }
+
+                /// <summary>
+                /// DataMiner writable property interface.
+                /// </summary>
+                public interface IWritableProperty : System.ComponentModel.INotifyPropertyChanged
+                {
+                    /// <summary>
+                    /// Gets or sets the property value.
+                    /// </summary>
+                    string Value
+                    {
+                        get;
+                        set;
                     }
                 }
 
@@ -6087,6 +10970,22 @@ namespace Skyline.DataMiner
                     }
 
                     /// <summary>
+                    /// Checks if the provided input value matches the definition of the property.
+                    /// </summary>
+                    /// <param name = "value">The input value.</param>
+                    /// <returns><c>true</c> if the input is valid; otherwise, <c>false</c>.</returns>
+                    public bool IsValidInput(string value)
+                    {
+                        if (!System.String.IsNullOrWhiteSpace(regex))
+                        {
+                            System.Text.RegularExpressions.Regex r = new System.Text.RegularExpressions.Regex(regex);
+                            return r.Match(value).Success;
+                        }
+
+                        return true;
+                    }
+
+                    /// <summary>
                     /// Parses the SLNet object.
                     /// </summary>
                     /// <param name = "config">Property configuration object.</param>
@@ -6227,6 +11126,13 @@ namespace Skyline.DataMiner
                     {
                         get;
                     }
+
+                    /// <summary>
+                    /// Checks if the provided input value matches the definition of the property.
+                    /// </summary>
+                    /// <param name = "value">The input value.</param>
+                    /// <returns><c>true</c> if the input is valid; otherwise, <c>false</c>.</returns>
+                    bool IsValidInput(string value);
                 }
 
                 /// <summary>
@@ -6295,6 +11201,80 @@ namespace Skyline.DataMiner
                 T this[string property]
                 {
                     get;
+                }
+            }
+
+            internal class PropertyCollection<T, U> : Skyline.DataMiner.Library.Common.IPropertyCollection<T, U> where T : Skyline.DataMiner.Library.Common.Properties.IDmsProperty<U> where U : Skyline.DataMiner.Library.Common.Properties.IDmsPropertyDefinition
+            {
+                private readonly System.Collections.Generic.ICollection<T> collection = new System.Collections.Generic.List<T>();
+                /// <summary>
+                /// Initializes a new instance of the <see cref = "PropertyCollection&lt;T, U&gt;"/> class.
+                /// </summary>
+                /// <param name = "properties">The properties to initialize the collection with.</param>
+                public PropertyCollection(System.Collections.Generic.IDictionary<System.String, T> properties)
+                {
+                    foreach (T value in properties.Values)
+                    {
+                        collection.Add(value);
+                    }
+                }
+
+                /// <summary>
+                /// Gets the number of properties in the collection.
+                /// </summary>
+                /// <value>The number of properties in this collection.</value>
+                public int Count
+                {
+                    get
+                    {
+                        return collection.Count;
+                    }
+                }
+
+                /// <summary>
+                /// Gets the item at the specified index.
+                /// </summary>
+                /// <param name = "index">The name of the property.</param>
+                /// <exception cref = "ArgumentNullException"><paramref name = "index"/> is <see langword = "null"/>.</exception>
+                /// <exception cref = "ArgumentOutOfRangeException">An invalid value that is not a member of the set of values.</exception>
+                /// <returns>The property with the specified name.</returns>
+                public T this[string index]
+                {
+                    get
+                    {
+                        if (index == null)
+                        {
+                            throw new System.ArgumentNullException("index");
+                        }
+
+                        T property = System.Linq.Enumerable.SingleOrDefault(collection, p => p.Definition.Name.Equals(index, System.StringComparison.OrdinalIgnoreCase));
+                        if (System.Collections.Generic.EqualityComparer<T>.Default.Equals(property, default(T)))
+                        {
+                            throw new System.ArgumentOutOfRangeException("index");
+                        }
+                        else
+                        {
+                            return property;
+                        }
+                    }
+                }
+
+                /// <summary>
+                /// Returns an enumerator that iterates through a collection.
+                /// </summary>
+                /// <returns>An enumerator that can be used to iterate through the collection.</returns>
+                public System.Collections.Generic.IEnumerator<T> GetEnumerator()
+                {
+                    return collection.GetEnumerator();
+                }
+
+                /// <summary>
+                /// Returns an enumerator that iterates through a collection.
+                /// </summary>
+                /// <returns>An <see cref = "IEnumerator"/> object that can be used to iterate through the collection.</returns>
+                System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+                {
+                    return ((System.Collections.IEnumerable)collection).GetEnumerator();
                 }
             }
 
@@ -6372,6 +11352,185 @@ namespace Skyline.DataMiner
                 System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
                 {
                     return ((System.Collections.IEnumerable)collection).GetEnumerator();
+                }
+            }
+
+            internal static class Logger
+            {
+                private const long SizeLimit = 3 * 1024 * 1024;
+                private const string LogFileName = @"C:\Skyline DataMiner\logging\ClassLibrary.txt";
+                private const string LogPositionPlaceholder = "**********";
+                private const int PlaceHolderSize = 10;
+                private static long logPositionPlaceholderStart = -1;
+                private static System.Threading.Mutex loggerMutex;
+#pragma warning disable S3963 // "static" fields should be initialized inline
+
+                static Logger()
+                {
+                    System.Security.AccessControl.MutexSecurity mutexSecurity = new System.Security.AccessControl.MutexSecurity();
+                    var accessRule = new System.Security.AccessControl.MutexAccessRule(new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.WorldSid, null), System.Security.AccessControl.MutexRights.Synchronize | System.Security.AccessControl.MutexRights.Modify, System.Security.AccessControl.AccessControlType.Allow);
+                    mutexSecurity.AddAccessRule(accessRule);
+                    bool createdNew;
+                    loggerMutex = new System.Threading.Mutex(false, "clpMutex", out createdNew, mutexSecurity);
+                }
+
+#pragma warning restore S3963 // "static" fields should be initialized inline
+
+                public static void Log(string message)
+                {
+                    try
+                    {
+                        loggerMutex.WaitOne();
+                        string logPrefix = System.DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss.fff") + "|";
+                        long messageByteCount = System.Text.Encoding.UTF8.GetByteCount(message);
+                        // Safeguard for large messages.
+                        if (messageByteCount > SizeLimit)
+                        {
+                            message = "WARNING: message \"" + message.Substring(0, 100) + " not logged as it is too large (over " + SizeLimit + " bytes).";
+                        }
+
+                        long limit = SizeLimit / 2; // Safeguard: limit messages. If safeguard removed, the limit would be: SizeLimit - placeholder size - prefix length - 4 (2 * CR LF).
+                        if (messageByteCount > limit)
+                        {
+                            long overhead = messageByteCount - limit;
+                            int partToRemove = (int)overhead / 4; // In worst case, each char takes 4 bytes.
+                            if (partToRemove == 0)
+                            {
+                                partToRemove = 1;
+                            }
+
+                            while (messageByteCount > limit)
+                            {
+                                message = message.Substring(0, message.Length - partToRemove);
+                                messageByteCount = System.Text.Encoding.UTF8.GetByteCount(message);
+                            }
+                        }
+
+                        int byteCount = System.Text.Encoding.UTF8.GetByteCount(message);
+                        long positionOfPlaceHolder = GetPlaceHolderPosition();
+                        System.IO.Stream fileStream = null;
+                        try
+                        {
+                            fileStream = new System.IO.FileStream(LogFileName, System.IO.FileMode.OpenOrCreate, System.IO.FileAccess.ReadWrite);
+                            using (System.IO.StreamWriter sw = new System.IO.StreamWriter(fileStream))
+                            {
+                                fileStream = null;
+                                if (positionOfPlaceHolder == -1)
+                                {
+                                    sw.BaseStream.Position = 0;
+                                    sw.Write(logPrefix);
+                                    sw.WriteLine(message);
+                                    logPositionPlaceholderStart = byteCount + logPrefix.Length;
+                                    sw.WriteLine(LogPositionPlaceholder);
+                                }
+                                else
+                                {
+                                    sw.BaseStream.Position = positionOfPlaceHolder;
+                                    if (positionOfPlaceHolder + byteCount + 4 + PlaceHolderSize > SizeLimit)
+                                    {
+                                        // Overwrite previous placeholder.
+                                        byte[] placeholder = System.Text.Encoding.UTF8.GetBytes("          ");
+                                        sw.BaseStream.Write(placeholder, 0, placeholder.Length);
+                                        sw.BaseStream.Position = 0;
+                                    }
+
+                                    sw.Write(logPrefix);
+                                    sw.WriteLine(message);
+                                    sw.Flush();
+                                    logPositionPlaceholderStart = sw.BaseStream.Position;
+                                    sw.WriteLine(LogPositionPlaceholder);
+                                }
+                            }
+                        }
+                        finally
+                        {
+                            if (fileStream != null)
+                            {
+                                fileStream.Dispose();
+                            }
+                        }
+                    }
+                    catch
+                    {
+                    // Do nothing.
+                    }
+                    finally
+                    {
+                        loggerMutex.ReleaseMutex();
+                    }
+                }
+
+                private static long SetToStartOfLine(System.IO.StreamReader streamReader, long startPosition)
+                {
+                    System.IO.Stream stream = streamReader.BaseStream;
+                    for (long position = startPosition - 1; position > 0; position--)
+                    {
+                        stream.Position = position;
+                        if (stream.ReadByte() == '\n')
+                        {
+                            return position + 1;
+                        }
+                    }
+
+                    return 0;
+                }
+
+                private static long GetPlaceHolderPosition()
+                {
+                    long result = -1;
+                    System.IO.Stream fileStream = null;
+                    try
+                    {
+                        fileStream = System.IO.File.Open(LogFileName, System.IO.FileMode.OpenOrCreate, System.IO.FileAccess.ReadWrite, System.IO.FileShare.ReadWrite);
+                        using (System.IO.StreamReader streamReader = new System.IO.StreamReader(fileStream))
+                        {
+                            fileStream = null;
+                            streamReader.DiscardBufferedData();
+                            long startOfLinePosition = SetToStartOfLine(streamReader, logPositionPlaceholderStart);
+                            streamReader.DiscardBufferedData();
+                            streamReader.BaseStream.Position = startOfLinePosition;
+                            string line;
+                            long postionInFile = startOfLinePosition;
+                            while ((line = streamReader.ReadLine()) != null)
+                            {
+                                if (line == LogPositionPlaceholder)
+                                {
+                                    streamReader.DiscardBufferedData();
+                                    result = postionInFile;
+                                    break;
+                                }
+                                else
+                                {
+                                    postionInFile = postionInFile + System.Text.Encoding.UTF8.GetByteCount(line) + 2;
+                                }
+                            }
+
+                            // If this point is reached, it means the placeholder was still not found.
+                            if (result == -1 && startOfLinePosition > 0)
+                            {
+                                streamReader.DiscardBufferedData();
+                                streamReader.BaseStream.Position = 0;
+                                while ((line = streamReader.ReadLine()) != null)
+                                {
+                                    if (line == LogPositionPlaceholder)
+                                    {
+                                        streamReader.DiscardBufferedData();
+                                        result = streamReader.BaseStream.Position - PlaceHolderSize - 2;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        if (fileStream != null)
+                        {
+                            fileStream.Dispose();
+                        }
+                    }
+
+                    return result;
                 }
             }
         }

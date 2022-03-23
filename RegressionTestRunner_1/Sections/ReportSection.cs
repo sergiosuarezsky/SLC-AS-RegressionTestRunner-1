@@ -39,7 +39,7 @@
 				regressionTestManager.TryGetLogging(automationScriptName, out string logging);
 				loggingTextBox.Text = logging;
 
-				bool success = regressionTestManager.WasTestSuccessful(automationScriptName);
+				bool success = regressionTestManager.WasTestSuccessful(automationScriptName) == RegressionTestStates.OK;
 				status = success ? "Success" : "Fail";
 			}
 			else
@@ -76,7 +76,7 @@
 
 			AddWidget(loggingTextBox, ++row, 1);
 
-			AddWidget(whiteSpace, ++row, 0, 1, 2);
+			AddWidget(whiteSpace, row + 1, 0, 1, 2);
 		}
 	}
 }
