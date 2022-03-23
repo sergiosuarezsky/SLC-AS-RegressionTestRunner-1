@@ -39,8 +39,7 @@
 				regressionTestManager.TryGetLogging(automationScriptName, out string logging);
 				loggingTextBox.Text = logging;
 
-				bool success = regressionTestManager.WasTestSuccessful(automationScriptName) == RegressionTestStates.OK;
-				status = success ? "Success" : "Fail";
+				status = Enum.GetName(typeof(RegressionTestStates), regressionTestManager.WasTestSuccessful(automationScriptName));
 			}
 			else
 			{
