@@ -66,7 +66,7 @@
 							"OPTIONS:0",
 							"CHECKSETS:FALSE",
 							"EXTENDED_ERROR_INFO",
-							"DEFER:FALSE" // syncronous execution
+							"DEFER:FALSE" // synchronous execution
 						})
 					});
 				}
