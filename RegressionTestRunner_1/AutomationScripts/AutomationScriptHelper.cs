@@ -18,26 +18,31 @@
 
 			foreach (string[] sa in response.psaRet.Psa.Select(x => x.Sa))
 			{
-				if (!sa.Any()) continue;
-
-				string fullPath = CleanPath(sa.First());
-
-				if (!searchSubDirectories && !fullPath.Equals(directoryPath)) continue;
-				if (!TryCreateDirectory(rootDirectory, fullPath, out AutomationScriptDirectory directory)) continue;
-
-				foreach (string scriptName in sa.Skip(1))
-				{
-					if (directory.Scripts.ContainsKey(scriptName)) continue;
-
-					directory.Scripts.Add(scriptName, new AutomationScript
-					{
-						Name = scriptName,
-						Path = fullPath
-					});
-				}
+				HandleAutomationScriptResponse(rootDirectory, sa, directoryPath, searchSubDirectories);
 			}
 
 			return rootDirectory;
+		}
+
+		private static void HandleAutomationScriptResponse(AutomationScriptDirectory rootDirectory, string[] sa, string directoryPath, bool searchSubDirectories)
+		{
+			if (!sa.Any()) return;
+
+			string fullPath = CleanPath(sa.First());
+
+			if (!searchSubDirectories && !fullPath.Equals(directoryPath)) return;
+			if (!TryCreateDirectory(rootDirectory, fullPath, out AutomationScriptDirectory directory)) return;
+
+			foreach (string scriptName in sa.Skip(1))
+			{
+				if (directory.Scripts.ContainsKey(scriptName)) return;
+
+				directory.Scripts.Add(scriptName, new AutomationScript
+				{
+					Name = scriptName,
+					Path = fullPath
+				});
+			}
 		}
 
 		private static bool TryCreateDirectory(AutomationScriptDirectory rootDirectory, string path, out AutomationScriptDirectory directory)
