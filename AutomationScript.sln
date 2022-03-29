@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28307.1169
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.32112.339
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Internal", "Internal", "{AE75DA54-CDFE-4BEC-974B-94EB9DE20F87}"
 EndProject
@@ -27,7 +27,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutomationScript_ClassLibra
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RegressionTestRunner", "RegressionTestRunner", "{123ECA0C-3F75-4C21-9BF8-3A9700E5E144}"
 	ProjectSection(SolutionItems) = preProject
-		RegressionTestRunner.xml = RegressionTestRunner.xml
+		..\..\..\..\..\Users\thomasre\Desktop\LastUpdateByScripts\RegressionTestRunner.xml = ..\..\..\..\..\Users\thomasre\Desktop\LastUpdateByScripts\RegressionTestRunner.xml
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Actions", "Actions", "{A9C091E7-69FB-473C-9D3B-DF890FE37C37}"

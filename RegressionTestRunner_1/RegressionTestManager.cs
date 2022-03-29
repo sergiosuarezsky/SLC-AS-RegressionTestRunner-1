@@ -169,9 +169,7 @@
 		public string GetReason(string testScript)
 		{
 			if (!TryGetLogFilePath(testScript, out string filePath)) return "Unable to find logging";
-
-			IEnumerable<string> logLines;
-			if (!TryGetLogFileLines(filePath, out logLines)) return "Unable to access logging";
+			if (!TryGetLogFileLines(filePath, out List<string> logLines)) return "Unable to access logging";
 
 			string reason = String.Empty;
 			foreach (string line in logLines)
@@ -197,13 +195,18 @@
 			return reason;
 		}
 
-		private static bool TryGetLogFileLines(string filePath, out IEnumerable<string> lines)
+		private static bool TryGetLogFileLines(string filePath, out List<string> lines)
 		{
-			lines = new string[0];
+			lines = new List<string>();
 
 			try
 			{
-				lines = File.ReadLines(filePath);
+				using (FileStream fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+				{
+					StreamReader streamReader = new StreamReader(fileStream);
+					while (!streamReader.EndOfStream) lines.Add(streamReader.ReadLine());
+				}
+
 				return true;
 			}
 			catch (Exception)
