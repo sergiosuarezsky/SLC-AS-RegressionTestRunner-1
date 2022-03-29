@@ -74,10 +74,12 @@
     <Compile Include="Helpers\CollapseButtonHelpers.cs" />
     <Compile Include="Helpers\IDmaExtensions.cs" />
     <Compile Include="Helpers\IEngineExtensions.cs" />
+    <Compile Include="RegressionTests\LogFile.cs" />
     <Compile Include="Helpers\ProgressEventArgs.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RegressionTestManager.cs" />
     <Compile Include="RegressionTests\PostBody.cs" />
+    <Compile Include="RegressionTests\RegressionTestStates.cs" />
     <Compile Include="RegressionTests\Test.cs" />
     <Compile Include="RegressionTests\TestCase.cs" />
     <Compile Include="ScriptConfiguration.cs" />
@@ -88,7 +90,7 @@
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>
     <VisualStudio>
-      <UserProperties DisLinkedXmlFile="..\RegressionTestRunner.xml" DisProjectType="automationScriptProject" DisLinkId="1" />
+      <UserProperties DisLinkId="1" DisProjectType="automationScriptProject" DisLinkedXmlFile="..\RegressionTestRunner.xml" />
     </VisualStudio>
   </ProjectExtensions>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

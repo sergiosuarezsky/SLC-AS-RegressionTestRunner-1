@@ -7,6 +7,7 @@
 	using System.Text;
 	using System.Threading.Tasks;
 	using RegressionTestRunner.Helpers;
+	using RegressionTestRunner.RegressionTests;
 	using Skyline.DataMiner.DeveloperCommunityLibrary.InteractiveAutomationToolkit;
 
 	public class ReportSection : Section
@@ -32,25 +33,23 @@
 		private void Initialize()
 		{
 			string status;
-			if (regressionTestManager.TryGetLogFilePath(automationScriptName, out string logFilePath))
+			if (regressionTestManager.TryGetLogging(automationScriptName, out LogFile logFile))
 			{
-				pathLabel.Text = $"Log file: {logFilePath}";
+				pathLabel.Text = $"Log file: {logFile.Path}";
+				loggingTextBox.Text = logFile.Content;
 
-				regressionTestManager.TryGetLogging(automationScriptName, out string logging);
-				loggingTextBox.Text = logging;
-
-				status = Enum.GetName(typeof(RegressionTestStates), regressionTestManager.WasTestSuccessful(automationScriptName));
+				status = Enum.GetName(typeof(RegressionTestStates), logFile.State);
 			}
 			else
 			{
-				logFilePath = Path.Combine(RegressionTestManager.TestOutputDirectory, automationScriptName);
+				pathLabel.Text = Path.Combine(RegressionTestManager.TestOutputDirectory, automationScriptName);
 
 				StringBuilder sb = new StringBuilder();
 				sb.AppendLine("Log file not found");
 				sb.AppendLine("This could be because the RT ran on an agent different than the one you are connected with.");
-				sb.AppendLine($"The logging should be available in {logFilePath}");
+				sb.AppendLine($"The logging should be available in {pathLabel.Text}");
+				loggingTextBox.Text = sb.ToString();
 
-				pathLabel.Text = sb.ToString();
 				status = "Unknown";
 			}
 			

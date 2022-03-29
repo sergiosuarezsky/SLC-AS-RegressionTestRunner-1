@@ -4,6 +4,7 @@
 	using System.Collections.Generic;
 	using System.IO;
 	using System.Linq;
+	using System.Text;
 	using System.Text.RegularExpressions;
 	using Newtonsoft.Json;
 	using RegressionTestRunner.AutomationScripts;
@@ -24,8 +25,8 @@
 		private readonly IEngine engine;
 		private readonly IDma agent;
 		private readonly string[] testScripts;
-		private readonly Dictionary<string, string> logFilePaths = new Dictionary<string, string>();
-		private readonly Dictionary<string, DateTime> logFileCreationTimes = new Dictionary<string, DateTime>();
+
+		private readonly Dictionary<string, LogFile> logFiles = new Dictionary<string, LogFile>();
 
 		public RegressionTestManager(IEngine engine, params string[] testScripts)
 		{
@@ -54,8 +55,6 @@
 
 				DateTime startTime = DateTime.Now;
 
-				RegisterStartTime(testScript, startTime);
-
 				try
 				{
 					engine.SendSLNetSingleResponseMessage(new ExecuteScriptMessage(agent.Id, testScript)
@@ -79,7 +78,7 @@
 
 				ReportProgress($"Retrieve logging...");
 
-				RegisterLogFilePath(testScript, startTime, endTime);
+				RegisterLogFile(testScript, startTime, endTime);
 
 				ReportProgress($"Finished test {testScript}");
 			}
@@ -116,121 +115,66 @@
 
 		private object[] GetResultsTableEntry(string scriptName)
 		{
-			DateTime runtime;
-			if (!logFileCreationTimes.TryGetValue(scriptName, out runtime))
+			RegressionTestStates state;
+			string reason;
+			DateTime creationTime;
+
+			if (!logFiles.TryGetValue(scriptName, out LogFile logFile))
 			{
-				engine.Log(nameof(RegressionTestManager), nameof(GetResultsTableEntry), $"{scriptName} was not registered correctly");
-				runtime = DateTime.MinValue;
+				state = RegressionTestStates.Unknown;
+				reason = $"{scriptName} was not registered correctly";
+				creationTime = DateTime.MinValue;
+			}
+			else
+			{
+				state = logFile.State;
+				reason = logFile.Reason;
+				creationTime = logFile.CreationTime;
 			}
 
 			return new object[]
 			{
 				scriptName,
-				(int)WasTestSuccessful(scriptName),
-				GetReason(scriptName),
-				runtime.ToOADate(),
+				(int)state,
+				reason,
+				creationTime.ToOADate(),
 				null
 			};
 		}
 
-		public bool TryGetLogging(string testScript, out string logging)
+		public bool TryGetLogging(string testScript, out LogFile logging)
 		{
-			logging = String.Empty;
-			if (!logFilePaths.TryGetValue(testScript, out string path)) return false;
+			logging = null;
+			if (!logFiles.TryGetValue(testScript, out LogFile logFile)) return false;
 
-			try
-			{
-				logging = File.ReadAllText(path);
-				return true;
-			}
-			catch (Exception e)
-			{
-				engine.Log(nameof(RegressionTestManager), nameof(TryGetLogging), $"Unable to retrieve logging of file {path}: {e}");
-				return false;
-			}
-		}
-
-		public bool TryGetLogFilePath(string testScript, out string filePath)
-		{
-			filePath = String.Empty;
-			if (!logFilePaths.TryGetValue(testScript, out string path)) return false;
-
-			filePath = path;
+			logging = logFile;
 			return true;
 		}
 
-		public RegressionTestStates WasTestSuccessful(string automationScript)
+		private void RegisterLogFile(string testScript, DateTime start, DateTime end)
 		{
-			if (!TryGetLogging(automationScript, out string logging)) return RegressionTestStates.Unknown;
-			if (logging.Contains("RT_PORTAL_FAIL")) return RegressionTestStates.Fail;
-			return RegressionTestStates.OK;
-		}
+			string logFilePath = String.Empty;
+			DateTime creationTime = start;
+			string logging = String.Empty;
+			string errorReason = String.Empty;
 
-		public string GetReason(string testScript)
-		{
-			if (!TryGetLogFilePath(testScript, out string filePath)) return "Unable to find logging";
-			if (!TryGetLogFileLines(filePath, out List<string> logLines)) return "Unable to access logging";
-
-			string reason = String.Empty;
-			foreach (string line in logLines)
-			{
-				if (Regex.Matches(line, @"Posting to '.*' with body: ").Count <= 0) continue;
-
-				int startIndex = line.IndexOf('{');
-				int length = line.LastIndexOf('}') - startIndex + 1;
-
-				try
-				{
-					string serializedPost = line.Substring(startIndex, length);
-					var postBody = JsonConvert.DeserializeObject<PostBody>(serializedPost);
-					reason = postBody.Value;
-					break;
-				}
-				catch (Exception e)
-				{
-					engine.Log(nameof(RegressionTestManager), nameof(GetReason), $"Unable to deserialize the post message on line: {line} due to {e}");
-				}
-			}
-
-			return reason;
-		}
-
-		private static bool TryGetLogFileLines(string filePath, out List<string> lines)
-		{
-			lines = new List<string>();
-
-			try
-			{
-				using (FileStream fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-				{
-					StreamReader streamReader = new StreamReader(fileStream);
-					while (!streamReader.EndOfStream) lines.Add(streamReader.ReadLine());
-				}
-
-				return true;
-			}
-			catch (Exception)
-			{
-				return false;
-			}
-		}
-
-		private void RegisterStartTime(string testScript, DateTime start)
-		{
-			logFileCreationTimes.Add(testScript, start);
-		}
-
-		private void RegisterLogFilePath(string testScript, DateTime start, DateTime end)
-		{
 			string outputFolderPath = Path.Combine(TestOutputDirectory, testScript);
 			if (!Directory.Exists(outputFolderPath))
 			{
-				ReportProgress($"No test output directory found, expected location: {outputFolderPath}");
+				errorReason = $"No test output directory found, expected location: {outputFolderPath}";
+				ReportProgress(errorReason);
+
+				logFiles.Add(testScript, new LogFile
+				{
+					CreationTime = start,
+					Path = logFilePath,
+					Content = logging,
+					ErrorReason = errorReason
+				});
+
 				return;
 			}
 
-			string logFilePath = String.Empty;
-			DateTime creationTime;
 			foreach (string filePath in Directory.EnumerateFiles(outputFolderPath))
 			{
 				creationTime = File.GetCreationTime(filePath);
@@ -241,7 +185,54 @@
 				}
 			}
 
-			logFilePaths.Add(testScript, logFilePath);
+			if (String.IsNullOrEmpty(logFilePath))
+			{
+				errorReason = $"No log file found in directory {outputFolderPath} that was created between {start} and {end}";
+				ReportProgress(errorReason);
+
+				logFiles.Add(testScript, new LogFile
+				{
+					CreationTime = start,
+					Path = logFilePath,
+					Content = logging,
+					ErrorReason = errorReason
+				});
+
+				return;
+			}
+
+			try
+			{
+				using (FileStream fileStream = new FileStream(logFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+				{
+					StreamReader streamReader = new StreamReader(fileStream);
+					while (!streamReader.EndOfStream) logging = streamReader.ReadToEnd();
+				}
+			}
+			catch (Exception e)
+			{
+				errorReason = $"Unable to retrieve logging due to {e}";
+				ReportProgress(errorReason);
+
+				logFiles.Add(testScript, new LogFile
+				{
+					CreationTime = start,
+					Path = logFilePath,
+					Content = logging,
+					ErrorReason = errorReason
+				});
+
+				return;
+			}
+
+			logFiles.Add(testScript, new LogFile
+			{
+				CreationTime = creationTime,
+				Path = logFilePath,
+				Content = logging,
+				ErrorReason = errorReason
+			});
+
 			ReportProgress($"Found log file: {logFilePath}");
 		}
 
@@ -252,12 +243,5 @@
 		}
 
 		public event EventHandler<ProgressEventArgs> ProgressReported;
-	}
-
-	public enum RegressionTestStates
-	{
-		Fail = 0,
-		OK = 1,
-		Unknown = 2
 	}
 }
