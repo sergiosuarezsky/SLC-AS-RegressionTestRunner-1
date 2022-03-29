@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <DMSScript options="272" xmlns="http://www.skyline.be/automation">
 	<Name>RegressionTestRunner</Name>
-	<Description></Description>
+	<Description>This script can be used to execute regression tests on customer systems.</Description>
 	<Type>Automation</Type>
 	<Author>SKYLINE2\thomasre</Author>
 	<CheckSets>FALSE</CheckSets>

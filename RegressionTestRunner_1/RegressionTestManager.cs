@@ -28,6 +28,8 @@
 
 		private readonly Dictionary<string, LogFile> logFiles = new Dictionary<string, LogFile>();
 
+		private IDmsTable regressionTestResultCollectorResultsTable;
+
 		public RegressionTestManager(IEngine engine, params string[] testScripts)
 		{
 			this.engine = engine;
@@ -36,6 +38,8 @@
 			var agents = engine.GetDms().GetAgents().Where(x => x.State == Skyline.DataMiner.Library.Common.AgentState.Running);
 			int currentAgentId = Skyline.DataMiner.Automation.Engine.SLNetRaw.ServerDetails.AgentID;
 			agent = agents.FirstOrDefault(x => x.Id == currentAgentId);
+
+			InitRegressionTestElement();
 		}
 
 		public RegressionTestManager(IEngine engine, IDma agent, params string[] testScripts)
@@ -43,9 +47,21 @@
 			this.engine = engine;
 			this.agent = agent;
 			this.testScripts = testScripts;
+
+			InitRegressionTestElement();
 		}
 
 		public IEnumerable<string> TestScripts => testScripts;
+
+		private void InitRegressionTestElement()
+		{
+			var rawElement = engine.FindElementsByProtocol(RegressionTestProtocolName).FirstOrDefault();
+			if (rawElement == null) return;
+
+			var dms = engine.GetDms();
+			var element = dms.GetElement(rawElement.ElementName);
+			regressionTestResultCollectorResultsTable = element.GetTable(RegressionTestResultsTablePid);
+		}
 
 		public void Run()
 		{
@@ -81,35 +97,29 @@
 				RegisterLogFile(testScript, startTime, endTime);
 
 				ReportProgress($"Finished test {testScript}");
-			}
 
-			PushResultsToElement();
+				if (regressionTestResultCollectorResultsTable != null)
+				{
+					ReportProgress($"Pushing results to Regression Test Result Collector...");
+
+					PushResultsToElement(testScript);
+
+					ReportProgress($"Finished pushing results");
+				}
+			}
 		}
 
-		public void PushResultsToElement()
+		public void PushResultsToElement(string scriptName)
 		{
-			engine.Log(nameof(RegressionTestManager), nameof(PushResultsToElement), "Pushing results to Regression Test Collector element...");
+			var entry = GetResultsTableEntry(scriptName);
 
-			var rawElement = engine.FindElementsByProtocol(RegressionTestProtocolName).FirstOrDefault();
-			if (rawElement == null) return;
-
-			var dms = engine.GetDms();
-			var element = dms.GetElement(rawElement.ElementName);
-			var resultsTable = element.GetTable(RegressionTestResultsTablePid);
-
-			foreach (string testScript in testScripts)
+			if (regressionTestResultCollectorResultsTable.RowExists(scriptName))
 			{
-				var entry = GetResultsTableEntry(testScript);
-				engine.Log(nameof(RegressionTestManager), nameof(PushResultsToElement), $"Pushing: {String.Join(", ", entry)}...");
-
-				if (resultsTable.RowExists(testScript))
-				{
-					resultsTable.SetRow(testScript, entry);
-				}
-				else
-				{
-					resultsTable.AddRow(entry);
-				}
+				regressionTestResultCollectorResultsTable.SetRow(scriptName, entry);
+			}
+			else
+			{
+				regressionTestResultCollectorResultsTable.AddRow(entry);
 			}
 		}
 
