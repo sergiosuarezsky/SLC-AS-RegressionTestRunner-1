@@ -55,12 +55,19 @@
 
 		private void InitRegressionTestElement()
 		{
-			var rawElement = engine.FindElementsByProtocol(RegressionTestProtocolName).FirstOrDefault();
-			if (rawElement == null) return;
+			try
+			{
+				var rawElement = engine.FindElementsByProtocol(RegressionTestProtocolName).FirstOrDefault();
+				if (rawElement == null) return;
 
-			var dms = engine.GetDms();
-			var element = dms.GetElement(rawElement.ElementName);
-			regressionTestResultCollectorResultsTable = element.GetTable(RegressionTestResultsTablePid);
+				var dms = engine.GetDms();
+				var element = dms.GetElement(rawElement.ElementName);
+				regressionTestResultCollectorResultsTable = element.GetTable(RegressionTestResultsTablePid);
+			}
+			catch(Exception e)
+			{
+				engine.Log(nameof(RegressionTestManager), nameof(InitRegressionTestElement), $"Unable to initialize the Regression Test Result Collector element due to {e}");
+			}
 		}
 
 		public void Run()
