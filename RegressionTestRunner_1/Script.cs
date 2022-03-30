@@ -106,7 +106,7 @@ namespace RegressionTestRunner
 			this.engine = engine;
 
 			string serializedConfig = engine.GetScriptParam(ScriptConfigurationParamName)?.Value;
-			if (String.IsNullOrWhiteSpace(serializedConfig) || !ScriptConfiguration.TryDeserialize(serializedConfig, out ScriptConfiguration scriptConfiguration))
+			if (!ScriptConfiguration.TryDeserialize(serializedConfig, out ScriptConfiguration scriptConfiguration))
 			{
 				RunInteractive();
 			}

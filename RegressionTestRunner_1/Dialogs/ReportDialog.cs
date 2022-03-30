@@ -1,6 +1,7 @@
 ﻿namespace RegressionTestRunner.Dialogs
 {
 	using System.Collections.Generic;
+	using System.Linq;
 	using RegressionTestRunner.Sections;
 	using Skyline.DataMiner.Automation;
 	using Skyline.DataMiner.DeveloperCommunityLibrary.InteractiveAutomationToolkit;
@@ -22,7 +23,7 @@
 		{
 			Title = "Regression Test Report";
 
-			foreach (string testScript in regressionTestManager.TestScripts)
+			foreach (string testScript in regressionTestManager.TestScripts.OrderBy(x => x))
 			{
 				reportSections.Add(new ReportSection(regressionTestManager, testScript));
 			}

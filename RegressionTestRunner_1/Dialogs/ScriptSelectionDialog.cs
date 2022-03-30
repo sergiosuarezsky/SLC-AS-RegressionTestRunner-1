@@ -83,14 +83,14 @@
 		private IEnumerable<TreeViewItem> GenerateChildren(AutomationScriptDirectory directory)
 		{
 			List<TreeViewItem> items = new List<TreeViewItem>();
-			foreach (var subDirectory in directory.Directories.Values)
+			foreach (var subDirectory in directory.Directories.Values.OrderBy(x => x.Name))
 			{
 				TreeViewItem directoryItem = new TreeViewItem(subDirectory.Name, subDirectory.ToString()) { ItemType = TreeViewItem.TreeViewItemType.CheckBox };
 				directoryItem.ChildItems.AddRange(GenerateChildren(subDirectory));
 				items.Add(directoryItem);
 			}
 
-			foreach (var script in directory.Scripts.Values)
+			foreach (var script in directory.Scripts.Values.OrderBy(x => x.Name))
 			{
 				items.Add(new TreeViewItem(script.Name, script.ToString()) { ItemType = TreeViewItem.TreeViewItemType.CheckBox });
 			}
