@@ -47,19 +47,7 @@
       <Project>{D36D4E2C-E69A-4F3F-88DA-564179D64850}</Project>
       <Name>AutomationScript_ClassLibrary</Name>
     </ProjectReference>
-    <Reference Include="SLManagedAutomation">
-      <HintPath>C:\Skyline DataMiner\Files\SLManagedAutomation.dll</HintPath>
-    </Reference>
-    <Reference Include="SLNetTypes">
-      <HintPath>C:\Skyline DataMiner\Files\SLNetTypes.dll</HintPath>
-    </Reference>
     <Reference Include="System.Core" />
-    <Reference Include="Skyline.DataMiner.Storage.Types">
-      <HintPath>C:\Skyline DataMiner\Files\Skyline.DataMiner.Storage.Types.dll</HintPath>
-    </Reference>
-    <Reference Include="SLLoggerUtil">
-      <HintPath>C:\Skyline DataMiner\Files\SLLoggerUtil.dll</HintPath>
-    </Reference>
     <Content Include="Settings.StyleCop" />
     <Content Include=".editorconfig" />
   </ItemGroup>
@@ -87,10 +75,15 @@
     <Compile Include="Sections\CubeCompliantTreeViewSection.cs" />
     <Compile Include="Sections\ReportSection.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Skyline.DataMiner.Dev.Automation">
+      <Version>10.0.0.5</Version>
+    </PackageReference>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>
     <VisualStudio>
-      <UserProperties DisLinkId="1" DisProjectType="automationScriptProject" DisLinkedXmlFile="..\RegressionTestRunner.xml" />
+      <UserProperties DisLinkedXmlFile="..\RegressionTestRunner.xml" DisProjectType="automationScriptProject" DisLinkId="1" />
     </VisualStudio>
   </ProjectExtensions>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
