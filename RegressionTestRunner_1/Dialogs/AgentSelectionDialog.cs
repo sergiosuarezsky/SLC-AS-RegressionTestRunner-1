@@ -1,14 +1,10 @@
 ﻿namespace RegressionTestRunner.Dialogs
 {
-	using System;
 	using System.Collections.Generic;
 	using System.Linq;
-	using System.Text;
-	using System.Threading.Tasks;
 	using RegressionTestRunner.Helpers;
 	using Skyline.DataMiner.Automation;
 	using Skyline.DataMiner.DeveloperCommunityLibrary.InteractiveAutomationToolkit;
-	using Skyline.DataMiner.Library.Automation;
 	using Skyline.DataMiner.Library.Common;
 
 	public class AgentSelectionDialog : Dialog
