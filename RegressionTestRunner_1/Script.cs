@@ -55,6 +55,7 @@ namespace RegressionTestRunner
 	using System.Collections.Generic;
 	using System.Linq;
 	using System.Text;
+	using Newtonsoft.Json;
 	using RegressionTestRunner.AutomationScripts;
 	using RegressionTestRunner.Dialogs;
 	using RegressionTestRunner.Helpers;
@@ -123,7 +124,7 @@ namespace RegressionTestRunner
 			// Get scripts from folders
 			foreach (string folder in scriptConfiguration.Folders)
 			{
-				var directory = AutomationScriptHelper.RetrieveScripts(engine, folder, false);
+				var directory = AutomationScriptHelper.RetrieveScripts(engine, folder, scriptConfiguration.SearchSubDirectories);
 				foreach (string automationScript in directory.AllAutomationScripts.Select(x => x.Name)) scripts.Add(automationScript);
 			}
 

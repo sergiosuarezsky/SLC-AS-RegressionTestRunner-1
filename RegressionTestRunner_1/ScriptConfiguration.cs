@@ -23,5 +23,7 @@
 		public List<string> Folders { get; set; } = new List<string>();
 
 		public List<string> Scripts { get; set; } = new List<string>();
+
+		public bool SearchSubDirectories { get; set; }
 	}
 }

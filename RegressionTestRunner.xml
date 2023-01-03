@@ -18,8 +18,10 @@
 			<Description>ScriptConfiguration</Description>
 			<!--
 			This parameter is used to run the script in silent mode (for example from a scheduled task), for interactive mode enter any random value
-			JSON formatted string: {"Folders": ["RTManager/The Pioneers/RT_ThePioneers"], "Scripts": ["RT_1", "RT_2"]}
-			-> this will cause all tests in the RTManager/The Pioneers/RT_ThePioneers automation directory to be run as well as RT_1 and RT_2
+			JSON formatted string: {"Folders": ["RTManager/The Pioneers/RT_ThePioneers"], "Scripts": ["RT_1", "RT_2"], "SearchSubDirectories": True}
+			-> this will cause all tests in the RTManager/The Pioneers/RT_ThePioneers automation directory to be run as well as RT_1 and RT_2.
+			-> Additionally, if the "SearchSubDirectories" parameter is set to true it will allow to search for test scripts inside other folders
+			-> from the specified directory.
 			-->
 		</ScriptParameter>
 	</Parameters>

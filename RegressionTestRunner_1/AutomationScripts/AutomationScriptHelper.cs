@@ -3,6 +3,7 @@
 	using System;
 	using System.IO;
 	using System.Linq;
+	using Newtonsoft.Json;
 	using RegressionTestRunner.Helpers;
 	using Skyline.DataMiner.Automation;
 	using Skyline.DataMiner.Net.Messages.Advanced;
@@ -12,6 +13,7 @@
 		public static AutomationScriptDirectory RetrieveScripts(IEngine engine, string directoryPath, bool searchSubDirectories = true)
 		{
 			AutomationScriptDirectory rootDirectory = new AutomationScriptDirectory(CleanPath(directoryPath));
+
 			var response = engine.SendSLNetSingleResponseMessage(new GetAutomationInfoMessage(21, String.Empty)) as GetAutomationInfoResponseMessage;
 			if (response == null) return rootDirectory;
 			if (response.psaRet == null || response.psaRet.Psa == null || !response.psaRet.Psa.Any()) return rootDirectory;
