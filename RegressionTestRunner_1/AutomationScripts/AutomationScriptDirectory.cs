@@ -12,20 +12,6 @@
 			Name = path.Split('/').Last();
 		}
 
-		public IEnumerable<AutomationScript> AllAutomationScripts
-		{
-			get
-			{
-				List<AutomationScript> automationScripts = new List<AutomationScript>(Scripts.Values);
-				foreach (var directory in Directories.Values)
-				{
-					automationScripts.AddRange(directory.AllAutomationScripts);
-				}
-
-				return automationScripts;
-			}
-		}
-
 		public string Name { get; }
 
 		public string Path { get; }
@@ -33,6 +19,22 @@
 		public Dictionary<string, AutomationScript> Scripts { get; } = new Dictionary<string, AutomationScript>();
 
 		public Dictionary<string, AutomationScriptDirectory> Directories { get; } = new Dictionary<string, AutomationScriptDirectory>();
+
+		public IEnumerable<AutomationScript> GetAllAutomationScripts(List<string> directoriesToSkip = null)
+		{
+			directoriesToSkip = directoriesToSkip ?? new List<string>();
+
+			var automationScripts = new List<AutomationScript>(Scripts.Values);
+
+			var directoriesToCheck = Directories.Values.Where(d => !directoriesToSkip.Contains(d.Path)).ToList();
+
+			foreach (var directory in directoriesToCheck)
+			{
+				automationScripts.AddRange(directory.GetAllAutomationScripts(directoriesToSkip));
+			}
+
+			return automationScripts;
+		}
 
 		public override string ToString()
 		{

@@ -32,7 +32,7 @@
 		{
 			get
 			{
-				return (from automationScript in rootDirectory.AllAutomationScripts
+				return (from automationScript in rootDirectory.GetAllAutomationScripts()
 						where treeView.CheckedLeaves.Any(x => x.KeyValue.Equals(automationScript.ToString()))
 						select automationScript);
 			}
@@ -52,7 +52,7 @@
 
 			int row = -1;
 
-			if (rootDirectory.AllAutomationScripts.Any())
+			if (rootDirectory.GetAllAutomationScripts().Any())
 			{
 				AddWidget(selectTestsLabel, ++row, 0, 1, 5);
 

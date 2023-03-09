@@ -125,14 +125,12 @@ namespace RegressionTestRunner
 			foreach (string folder in scriptConfiguration.Folders)
 			{
 				var directory = AutomationScriptHelper.RetrieveScripts(engine, folder, scriptConfiguration.SearchSubDirectories);
-				foreach (string automationScript in directory.AllAutomationScripts.Select(x => x.Name)) scripts.Add(automationScript);
+				
+				scripts.UnionWith(directory.GetAllAutomationScripts(scriptConfiguration.FoldersToSkip).Select(x => x.Name).Except(scriptConfiguration.ScriptsToSkip));
 			}
 
 			// Get standalone scripts
-			foreach (string automationScript in scriptConfiguration.Scripts)
-			{
-				scripts.Add(automationScript);
-			}
+			scripts.UnionWith(scriptConfiguration.Scripts);
 
 			engine.Log(nameof(Script), nameof(RunSilent), $"Scripts to run: {String.Join(", ", scripts)}");
 
