@@ -98,7 +98,7 @@
 			return items;
 		}
 
-		public Button SelectAgentButton { get; private set; } = new Button("Select Agent...");
+		public Button SelectAgentButton { get; private set; } = new Button("Run Tests...");
 
 		public Button OkButton { get; private set; } = new Button("OK");
 	}

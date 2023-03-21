@@ -8,8 +8,8 @@
     <ProjectGuid>{AC61C346-B01F-4955-A00D-DF5A4B4607EF}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>RegressionTestRunner_1</RootNamespace>
-    <AssemblyName>RegressionTestRunner_1</AssemblyName>
+    <RootNamespace>RegressionTestRunner</RootNamespace>
+    <AssemblyName>RegressionTestRunner</AssemblyName>
     <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <LangVersion>
@@ -51,13 +51,13 @@
     <Compile Include="AutomationScripts\AutomationScript.cs" />
     <Compile Include="AutomationScripts\AutomationScriptDirectory.cs" />
     <Compile Include="AutomationScripts\AutomationScriptHelper.cs" />
-    <Compile Include="Dialogs\AgentSelectionDialog.cs" />
     <Compile Include="Dialogs\ConfirmationDialog.cs" />
     <Compile Include="Dialogs\ReportDialog.cs" />
     <Compile Include="Dialogs\ScriptSelectionDialog.cs" />
     <Compile Include="Helpers\CollapseButtonHelpers.cs" />
     <Compile Include="Helpers\IDmaExtensions.cs" />
     <Compile Include="Helpers\IEngineExtensions.cs" />
+    <Compile Include="RegressionTestResult.cs" />
     <Compile Include="RegressionTests\LogFile.cs" />
     <Compile Include="Helpers\ProgressEventArgs.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -66,6 +66,7 @@
     <Compile Include="RegressionTests\RegressionTestStates.cs" />
     <Compile Include="RegressionTests\Test.cs" />
     <Compile Include="RegressionTests\TestCase.cs" />
+    <Compile Include="Report.cs" />
     <Compile Include="ScriptConfiguration.cs" />
     <Compile Include="Script.cs" />
     <Compile Include="Sections\CubeCompliantTreeViewSection.cs" />
@@ -85,7 +86,7 @@
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <ProjectExtensions>
     <VisualStudio>
-      <UserProperties DisLinkId="1" DisProjectType="automationScriptProject" DisLinkedXmlFile="..\RegressionTestRunner.xml" />
+      <UserProperties DisLinkedXmlFile="..\RegressionTestRunner.xml" DisProjectType="automationScriptProject" DisLinkId="1" />
     </VisualStudio>
   </ProjectExtensions>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

@@ -19,10 +19,8 @@
 		private const int RegressionTestResultsTablePid = 100;
 
 		private readonly IEngine engine;
-		private readonly IDma agent;
-		private readonly string[] testScripts;
-
-		private readonly Dictionary<string, LogFile> logFiles = new Dictionary<string, LogFile>();
+		private readonly string[] testScripts = new string[0];
+		private readonly List<RegressionTestResult> testResults = new List<RegressionTestResult>();
 
 		private IDmsTable regressionTestResultCollectorResultsTable;
 
@@ -31,23 +29,12 @@
 			this.engine = engine;
 			this.testScripts = testScripts;
 
-			var agents = engine.GetDms().GetAgents().Where(x => x.State == Skyline.DataMiner.Library.Common.AgentState.Running);
-			int currentAgentId = Skyline.DataMiner.Automation.Engine.SLNetRaw.ServerDetails.AgentID;
-			agent = agents.FirstOrDefault(x => x.Id == currentAgentId);
-
 			InitRegressionTestElement();
 		}
 
-		public RegressionTestManager(IEngine engine, IDma agent, params string[] testScripts)
-		{
-			this.engine = engine;
-			this.agent = agent;
-			this.testScripts = testScripts;
+		public IEnumerable<string> Scripts => testScripts;
 
-			InitRegressionTestElement();
-		}
-
-		public IEnumerable<string> TestScripts => testScripts;
+		public IEnumerable<RegressionTestResult> Results => testResults;
 
 		private void InitRegressionTestElement()
 		{
@@ -60,7 +47,7 @@
 				var element = dms.GetElement(rawElement.ElementName);
 				regressionTestResultCollectorResultsTable = element.GetTable(RegressionTestResultsTablePid);
 			}
-			catch(Exception e)
+			catch (Exception e)
 			{
 				engine.Log(nameof(RegressionTestManager), nameof(InitRegressionTestElement), $"Unable to initialize the Regression Test Result Collector element due to {e}");
 			}
@@ -68,191 +55,86 @@
 
 		public void Run()
 		{
+			testResults.Clear();
 			foreach (string testScript in testScripts)
 			{
 				ReportProgress($"Executing test {testScript}...");
 
-				DateTime startTime = DateTime.Now;
-
+				RegressionTestResult testResult;
 				try
 				{
-					engine.SendSLNetSingleResponseMessage(new ExecuteScriptMessage(agent.Id, testScript)
-					{
-						Options = new SA(new[]
-						{
-							"USER:cookie",
-							"OPTIONS:0",
-							"CHECKSETS:FALSE",
-							"EXTENDED_ERROR_INFO",
-							"DEFER:FALSE" // synchronous execution
-						})
-					});
+					var subscript = engine.PrepareSubScript(testScript);
+					subscript.Synchronous = true;
+					subscript.PerformChecks = false;
+					subscript.StartScript();
+
+					var scriptResults = subscript.GetScriptResult();
+					testResult = new RegressionTestResult(testScript, scriptResults);
 				}
 				catch (Exception e)
 				{
+					testResult = new RegressionTestResult(testScript)
+					{
+						Success = false,
+						Reason = e.ToString(),
+					};
+
 					ReportProgress($"Something when wrong when running test {testScript} {e}");
 				}
 
-				DateTime endTime = DateTime.Now;
+				ReportProgress($"Test {(testResult.Success ? "succeeded" : "failed")}");
 
-				ReportProgress($"Retrieve logging...");
-
-				RegisterLogFile(testScript, startTime, endTime);
-
-				ReportProgress($"Finished test {testScript}");
-
-				if (regressionTestResultCollectorResultsTable != null)
-				{
-					ReportProgress($"Pushing results to Regression Test Result Collector...");
-
-					PushResultsToElement(testScript);
-
-					ReportProgress($"Finished pushing results");
-				}
+				testResults.Add(testResult);
 			}
 		}
 
-		public void PushResultsToElement(string scriptName)
+		public void PushResultsToCollectorElement()
 		{
-			var entry = GetResultsTableEntry(scriptName);
-
-			if (regressionTestResultCollectorResultsTable.RowExists(scriptName))
+			if (regressionTestResultCollectorResultsTable == null)
 			{
-				regressionTestResultCollectorResultsTable.SetRow(scriptName, entry);
-			}
-			else
-			{
-				regressionTestResultCollectorResultsTable.AddRow(entry);
-			}
-		}
-
-		private object[] GetResultsTableEntry(string scriptName)
-		{
-			RegressionTestStates state;
-			string reason;
-			DateTime creationTime;
-
-			if (!logFiles.TryGetValue(scriptName, out LogFile logFile))
-			{
-				state = RegressionTestStates.Unknown;
-				reason = $"{scriptName} was not registered correctly";
-				creationTime = DateTime.MinValue;
-			}
-			else
-			{
-				state = logFile.State;
-				reason = logFile.Reason;
-				creationTime = logFile.CreationTime;
-			}
-
-			return new object[]
-			{
-				scriptName,
-				(int)state,
-				reason,
-				creationTime.ToOADate(),
-				null
-			};
-		}
-
-		public bool TryGetLogging(string testScript, out LogFile logging)
-		{
-			logging = null;
-			if (!logFiles.TryGetValue(testScript, out LogFile logFile)) return false;
-
-			logging = logFile;
-			return true;
-		}
-
-		private void RegisterLogFile(string testScript, DateTime start, DateTime end)
-		{
-			string logFilePath = String.Empty;
-			DateTime creationTime = start;
-			string logging = String.Empty;
-			string errorReason = String.Empty;
-
-			string outputFolderPath = Path.Combine(TestOutputDirectory, testScript);
-			if (!Directory.Exists(outputFolderPath))
-			{
-				errorReason = $"No test output directory found, expected location: {outputFolderPath}";
-				ReportProgress(errorReason);
-
-				logFiles.Add(testScript, new LogFile
-				{
-					CreationTime = start,
-					Path = logFilePath,
-					Content = logging,
-					ErrorReason = errorReason
-				});
-
+				ReportProgress($"Unable to push results to Regression Test Result Collector");
 				return;
 			}
 
-			foreach (string filePath in Directory.EnumerateFiles(outputFolderPath))
+			ReportProgress($"Pushing results to Regression Test Result Collector...");
+
+			foreach (var result in testResults)
 			{
-				creationTime = File.GetCreationTime(filePath);
-				if (start <= creationTime && creationTime <= end)
+				if (regressionTestResultCollectorResultsTable.RowExists(result.Script))
 				{
-					logFilePath = filePath;
-					break;
+					regressionTestResultCollectorResultsTable.SetRow(result.Script, result.ToObjectRow());
+				}
+				else
+				{
+					regressionTestResultCollectorResultsTable.AddRow(result.ToObjectRow());
 				}
 			}
 
-			if (String.IsNullOrEmpty(logFilePath))
-			{
-				errorReason = $"No log file found in directory {outputFolderPath} that was created between {start} and {end}";
-				ReportProgress(errorReason);
+			ReportProgress($"Finished pushing results");
+		}
 
-				logFiles.Add(testScript, new LogFile
+		public void SendResultsByMail(IEnumerable<string> emailAddresses)
+		{
+			if (!emailAddresses.Any()) return;
+
+			ReportProgress($"Sending results through mail...");
+
+			foreach (string emailAddress in emailAddresses)
+			{
+				engine.SendEmail(new EmailOptions
 				{
-					CreationTime = start,
-					Path = logFilePath,
-					Content = logging,
-					ErrorReason = errorReason
+					Title = $"Regression Test Results [{DateTime.Now}]",
+					TO = emailAddress,
+					Message = String.Join(Environment.NewLine, testResults.Select(x => x.ToString()))
 				});
-
-				return;
 			}
 
-			try
-			{
-				using (FileStream fileStream = new FileStream(logFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-				{
-					StreamReader streamReader = new StreamReader(fileStream);
-					while (!streamReader.EndOfStream) logging = streamReader.ReadToEnd();
-				}
-			}
-			catch (Exception e)
-			{
-				errorReason = $"Unable to retrieve logging due to {e}";
-				ReportProgress(errorReason);
-
-				logFiles.Add(testScript, new LogFile
-				{
-					CreationTime = start,
-					Path = logFilePath,
-					Content = logging,
-					ErrorReason = errorReason
-				});
-
-				return;
-			}
-
-			logFiles.Add(testScript, new LogFile
-			{
-				CreationTime = creationTime,
-				Path = logFilePath,
-				Content = logging,
-				ErrorReason = errorReason
-			});
-
-			ReportProgress($"Found log file: {logFilePath}");
+			ReportProgress($"Finished sending results");
 		}
 
 		private void ReportProgress(string progress)
 		{
-			if (ProgressReported == null) return;
-			ProgressReported(this, new ProgressEventArgs(progress));
+			ProgressReported?.Invoke(this, new ProgressEventArgs(progress));
 		}
 
 		public event EventHandler<ProgressEventArgs> ProgressReported;

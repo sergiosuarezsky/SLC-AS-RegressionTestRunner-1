@@ -12,51 +12,26 @@
 
 	public class ReportSection : Section
 	{
-		private readonly RegressionTestManager regressionTestManager;
-		private readonly string automationScriptName;
-
 		private readonly CollapseButton collapseButton = CollapseButtonHelpers.SmallCollapseButton();
-		private readonly Label title = new Label { Style = TextStyle.Heading };
-		private readonly Label pathLabel = new Label(String.Empty);
-		private readonly TextBox loggingTextBox = new TextBox { Height = 500, Width = 800, IsMultiline = true };
+		private readonly Label titleLabel = new Label { Style = TextStyle.Heading };
+		private readonly TextBox reasonTextBox = new TextBox { Height = 200, Width = 800, IsMultiline = true };
 		private readonly WhiteSpace whiteSpace = new WhiteSpace();
 
-		public ReportSection(RegressionTestManager regressionTestManager, string automationScriptName)
-		{
-			this.regressionTestManager = regressionTestManager;
-			this.automationScriptName = automationScriptName;
+		private readonly RegressionTestResult result;
 
+		public ReportSection(RegressionTestResult result)
+		{
+			this.result = result ?? throw new ArgumentNullException(nameof(result));
 			Initialize();
 			GenerateUi();
 		}
 
 		private void Initialize()
-		{
-			string status;
-			if (regressionTestManager.TryGetLogging(automationScriptName, out LogFile logFile))
-			{
-				pathLabel.Text = $"Log file: {logFile.Path}";
-				loggingTextBox.Text = logFile.Content;
+		{		
+			titleLabel.Text = $"{result.Script} - {(result.Success ? "Success" : "Fail")}";
+			reasonTextBox.Text = result.Reason;
 
-				status = Enum.GetName(typeof(RegressionTestStates), logFile.State);
-			}
-			else
-			{
-				pathLabel.Text = Path.Combine(RegressionTestManager.TestOutputDirectory, automationScriptName);
-
-				StringBuilder sb = new StringBuilder();
-				sb.AppendLine("Log file not found");
-				sb.AppendLine("This could be because the RT ran on an agent different than the one you are connected with.");
-				sb.AppendLine($"The logging should be available in {pathLabel.Text}");
-				loggingTextBox.Text = sb.ToString();
-
-				status = "Unknown";
-			}
-			
-			title.Text = $"{automationScriptName} - {status}";
-
-			collapseButton.LinkedWidgets.Add(pathLabel);
-			collapseButton.LinkedWidgets.Add(loggingTextBox);
+			collapseButton.LinkedWidgets.Add(reasonTextBox);
 			collapseButton.LinkedWidgets.Add(whiteSpace);
 			collapseButton.Collapse();
 		}
@@ -68,11 +43,9 @@
 			int row = -1;
 
 			AddWidget(collapseButton, ++row, 0);
-			AddWidget(title, row, 1);
+			AddWidget(titleLabel, row, 1);
 
-			AddWidget(pathLabel, ++row, 1);
-
-			AddWidget(loggingTextBox, ++row, 1);
+			AddWidget(reasonTextBox, ++row, 1);
 
 			AddWidget(whiteSpace, row + 1, 0, 1, 2);
 		}

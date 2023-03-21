@@ -23,9 +23,9 @@
 		{
 			Title = "Regression Test Report";
 
-			foreach (string testScript in regressionTestManager.TestScripts.OrderBy(x => x))
+			foreach (var result in regressionTestManager.Results.OrderBy(x => x.CreationTime))
 			{
-				reportSections.Add(new ReportSection(regressionTestManager, testScript));
+				reportSections.Add(new ReportSection(result));
 			}
 		}
 
