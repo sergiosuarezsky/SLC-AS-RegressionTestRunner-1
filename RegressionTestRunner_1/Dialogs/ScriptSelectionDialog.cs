@@ -14,7 +14,7 @@
 
 	public class ScriptSelectionDialog : Dialog
 	{
-		private const string RootDirectoryName = @"RTManager";
+		private const string RootDirectoryName = @"YLE";
 
 		private readonly Label selectTestsLabel = new Label("Select regression tests to run:");
 		private readonly Label noRegressionTestsFoundLabel = new Label("No regression tests found on the DMA");

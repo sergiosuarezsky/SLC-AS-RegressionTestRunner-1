@@ -66,7 +66,7 @@
     <Compile Include="RegressionTests\RegressionTestStates.cs" />
     <Compile Include="RegressionTests\Test.cs" />
     <Compile Include="RegressionTests\TestCase.cs" />
-    <Compile Include="Report.cs" />
+    <Compile Include="RegressionTestReport.cs" />
     <Compile Include="ScriptConfiguration.cs" />
     <Compile Include="Script.cs" />
     <Compile Include="Sections\CubeCompliantTreeViewSection.cs" />

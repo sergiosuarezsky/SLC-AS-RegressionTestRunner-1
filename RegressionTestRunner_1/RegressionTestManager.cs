@@ -19,22 +19,22 @@
 		private const int RegressionTestResultsTablePid = 100;
 
 		private readonly IEngine engine;
-		private readonly string[] testScripts = new string[0];
-		private readonly List<RegressionTestResult> testResults = new List<RegressionTestResult>();
+		private readonly string[] scripts = new string[0];
+		private readonly List<RegressionTestResult> results = new List<RegressionTestResult>();
 
 		private IDmsTable regressionTestResultCollectorResultsTable;
 
 		public RegressionTestManager(IEngine engine, params string[] testScripts)
 		{
 			this.engine = engine;
-			this.testScripts = testScripts;
+			this.scripts = testScripts;
 
 			InitRegressionTestElement();
 		}
 
-		public IEnumerable<string> Scripts => testScripts;
+		public IEnumerable<string> Scripts => scripts;
 
-		public IEnumerable<RegressionTestResult> Results => testResults;
+		public IEnumerable<RegressionTestResult> Results => results;
 
 		private void InitRegressionTestElement()
 		{
@@ -55,8 +55,8 @@
 
 		public void Run()
 		{
-			testResults.Clear();
-			foreach (string testScript in testScripts)
+			results.Clear();
+			foreach (string testScript in scripts)
 			{
 				ReportProgress($"Executing test {testScript}...");
 
@@ -84,7 +84,7 @@
 
 				ReportProgress($"Test {(testResult.Success ? "succeeded" : "failed")}");
 
-				testResults.Add(testResult);
+				results.Add(testResult);
 			}
 		}
 
@@ -98,7 +98,7 @@
 
 			ReportProgress($"Pushing results to Regression Test Result Collector...");
 
-			foreach (var result in testResults)
+			foreach (var result in results)
 			{
 				if (regressionTestResultCollectorResultsTable.RowExists(result.Script))
 				{
@@ -119,13 +119,15 @@
 
 			ReportProgress($"Sending results through mail...");
 
+			var report = new RegressionTestReport(engine, results);
+
 			foreach (string emailAddress in emailAddresses)
 			{
 				engine.SendEmail(new EmailOptions
 				{
-					Title = $"Regression Test Results [{DateTime.Now}]",
+					Title = report.Title,
 					TO = emailAddress,
-					Message = String.Join(Environment.NewLine, testResults.Select(x => x.ToString()))
+					Message = report.Body
 				});
 			}
 
