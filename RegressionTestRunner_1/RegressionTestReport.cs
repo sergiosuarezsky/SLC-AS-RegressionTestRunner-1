@@ -2,6 +2,7 @@
 {
 	using System;
 	using System.Collections.Generic;
+	using System.Linq;
 	using System.Text;
 	using Skyline.DataMiner.Automation;
 	using Skyline.DataMiner.Library.Automation;
@@ -46,7 +47,7 @@
 				sb.Append("</tr>");
 
 				// Add results
-				foreach (var result in results)
+				foreach (var result in results.OrderBy(x => x.Script))
 				{
 					sb.Append("<tr>");
 					sb.Append($"<td>{result.Script}</td>");
