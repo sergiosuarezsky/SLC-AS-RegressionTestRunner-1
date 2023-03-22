@@ -5,8 +5,8 @@
 
 	public class RegressionTestResult
 	{
-		public const string SuccessKey = "Success";
-		public const string ReasonKey = "Reason";
+		private const string SuccessKey = "Success";
+		private const string ReasonKey = "Reason";
 
 		public RegressionTestResult(string script)
 		{
