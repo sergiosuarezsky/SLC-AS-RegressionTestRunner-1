@@ -31,11 +31,21 @@
 			}
 		}
 
+		public double SuccessRate
+		{
+			get
+			{
+				return Math.Round((double)results.Count(x => x.Success) / (double)results.Count() * 100d);
+			}
+		}
+
 		public string Body
 		{
 			get
 			{
 				StringBuilder sb = new StringBuilder();
+				sb.Append($"<b>Success rate: {SuccessRate} %</b>");
+
 				sb.Append("<table style=\"width:100%\">");
 
 				// Add header
