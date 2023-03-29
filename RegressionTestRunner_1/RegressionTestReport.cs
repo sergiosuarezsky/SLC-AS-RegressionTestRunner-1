@@ -44,7 +44,7 @@
 			get
 			{
 				StringBuilder sb = new StringBuilder();
-				sb.Append($"<p style=\"margin: 10px\"><b>Success rate: {SuccessRate} %</b></p>");
+				sb.Append($"<p style=\"margin: 10px;font-size:18px\"><b>Success rate: {SuccessRate} %</b></p>");
 
 				sb.Append("<table style=\"width:100%\">");
 
