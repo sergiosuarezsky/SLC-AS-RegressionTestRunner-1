@@ -14,8 +14,6 @@
 
 	public class ScriptSelectionDialog : Dialog
 	{
-		private const string RootDirectoryName = @"YLE";
-
 		private readonly Label selectTestsLabel = new Label("Select regression tests to run:");
 		private readonly Label noRegressionTestsFoundLabel = new Label("No regression tests found on the DMA");
 
@@ -41,7 +39,7 @@
 		private void Initialize()
 		{
 			Title = "Select Tests";
-			rootDirectory = AutomationScriptHelper.RetrieveScripts(Engine, RootDirectoryName);
+			rootDirectory = AutomationScriptHelper.RetrieveScripts(Engine);
 			treeView = new CubeCompliantTreeViewSection(new[] { BuildTree(rootDirectory) });
 			treeView.Collapse();
 		}
@@ -62,6 +60,7 @@
 				AddWidget(new WhiteSpace(), ++row, 0, 1, 5);
 				AddWidget(SelectAgentButton, ++row, 0, 1, 5);
 
+				Engine.GenerateInformation($"ScriptSelectionDialog|GenerateUi|Depth: {treeView.Depth}");
 				for (int i = 0; i < treeView.Depth; i++) SetColumnWidth(i, 50);
 			}
 			else

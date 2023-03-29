@@ -126,7 +126,6 @@ namespace RegressionTestRunner
 			foreach (string folder in scriptConfiguration.Folders)
 			{
 				var directory = AutomationScriptHelper.RetrieveScripts(engine, folder, scriptConfiguration.SearchSubDirectories);
-				
 				scripts.UnionWith(directory.GetAllAutomationScripts(scriptConfiguration.FoldersToSkip).Select(x => x.Name).Except(scriptConfiguration.ScriptsToSkip));
 			}
 

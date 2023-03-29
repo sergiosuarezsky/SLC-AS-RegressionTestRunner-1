@@ -1,0 +1,610 @@
+{
+  "saRet": null,
+  "psaRet": {
+    "Psa": [
+      {
+        "Sa": [
+          "Teracom",
+          "Enable Transmitter",
+          "Demo Site View Manager"
+        ]
+      },
+      {
+        "Sa": [
+          "Data sources",
+          "Connections Source Script"
+        ]
+      },
+      {
+        "Sa": [
+          "RTManager\\Team Application\\RT_SRM",
+          "RT_SRM_GetBookings"
+        ]
+      },
+      {
+        "Sa": [
+          "EBU",
+          "Eurovision Booking"
+        ]
+      },
+      {
+        "Sa": [
+          "SRM",
+          "SRM_MigrateServiceResourceUsageDefinitionRole",
+          "SRM_ManageProperties",
+          "SRM_CustomDijkstraContributingReservation",
+          "SRM_ContributingReservation",
+          "MigrateResources",
+          "SRM_ServiceDefinitionImportExport",
+          "SRM_NetworkPathSelection",
+          "SRM_MigrateOrchestrationLogs",
+          "SRM_ImportFunctions",
+          "SRM_AssignProfilesAndResourcesToCustomServiceDefinition",
+          "SRM_MigrateResourceIOProperties",
+          "SRM_HandleBookingStartFailure",
+          "SRM_ExecuteProfileLoadScriptTests",
+          "SRM_CreateServiceProfile",
+          "SRM_CheckCorruptProfileInstances",
+          "SRM_BookingAttachments",
+          "SRM_AssignProfileToResource",
+          "SRM_DiscoverResources",
+          "SRM_ServiceProfileProcessing",
+          "SRM_DefineBookingMainInfo",
+          "SRM_CustomProperty",
+          "SRM_ApplyProfileToUnmappedResourceSilent",
+          "SRM_ShowResources",
+          "SRM_ProfileLoadScriptTesterScriptExample",
+          "SRM_MigrateTransportServiceDefinitions",
+          "SRM_BookResourcesQuickly",
+          "SRM_ApplyStateChangeOnContributing",
+          "SRM_ApplySettings",
+          "SRM_UnassignResourceFromBooking",
+          "SRM_ServiceProfileDataTransferExample",
+          "SRM_MigrateIsContributing",
+          "SRM_LifecycleServiceOrchestration",
+          "SRM_AddResourceFromPoolToBooking",
+          "PFM_ProfileInstancesImportExport_Beta",
+          "SRM_ResourceManagement",
+          "SRM_MigrateSrmServiceInfo",
+          "SRM_PopupMessage",
+          "SRM_DeleteBooking",
+          "SRM_BookingActions",
+          "SRM_ManageEvents",
+          "SRM_AddDcfInterfacesAsResources",
+          "SRM_ServiceProfileDataTransferExampleShared",
+          "SRM_ReservationAction",
+          "SRM_LSOTemplate",
+          "SRM_GenericSourceCopyLogoAndTag",
+          "SRM_DefineBooking",
+          "SRM_DataTransferRulesTemplate",
+          "SRM_AssignFilterToFunctionResources",
+          "SRM_MigrateReservationSetOnStartActionsFailureEvent",
+          "SRM_DefaultEmptyLSO",
+          "SRM_CreateNewBooking",
+          "SRM_SolutionDeploymentAnalysis",
+          "SRM_QuarantineHandling",
+          "SRM_ProfileLoadScriptTemplate",
+          "SRM_CreateMultipleDestinationNetworkBooking",
+          "SRM_CheckOverdueActions",
+          "SRM_BookingStartFailureTemplate",
+          "SRM_ApplySettingsOnResource_Generic",
+          "SRM_ConvertToContributing",
+          "SRM_ApplyProfileToResource",
+          "SRM_ResourceActions",
+          "SRM_ForceStateTransition",
+          "SRM_ExportFullConfiguration",
+          "SRM_DetectInconsistentResources",
+          "SRM_QuarantineInformation",
+          "SRM_LeaveQuarantineState",
+          "SRM_ImportFunctions_Beta",
+          "SRM_ExportFunctions_Beta",
+          "SRM_ExportFunctions",
+          "SRM_CustomContributingReservation",
+          "SRM_AddInterpreteTypeToProfileParams"
+        ]
+      },
+      {
+        "Sa": [
+          "",
+          "TicketingSetup",
+          "SimpleIAS",
+          "IAS_Section_Demo",
+          "HMX Simulation",
+          "ExportOrder",
+          "TrendExample",
+          "Test_Script_1032_WantsOnChange",
+          "SetReservationInstanceProperty",
+          "LazyLoadingTreeviewTest_DLL",
+          "interactive automation tests",
+          "IAS_FileSelectorDemo2",
+          "IAS_FileSelectorDemo",
+          "FocusLostDateTimePicker",
+          "FinnishBroadcastingCompany_TestGetAvailableResources",
+          "EurovisionDataHandler",
+          "DateTimeFormatTests",
+          "Test_Script_1032",
+          "SetFeenixIntegrationRow",
+          "IAS_Toolkit_FileSelector_Test",
+          "FinnishBroadcastingCompany_StartRegressionTesting",
+          "DateTimePicker_Test",
+          "CustomerUI_TestDateTimePicker_V3",
+          "CustomerUI_TestDateTimePicker_V2",
+          "ClientList",
+          "Test EBU Integration",
+          "RetrieveReservationInstanceHistory",
+          "Numeric_IsRequired_ThomasCR",
+          "IAS_Time_Demo",
+          "ExportAllServiceDefinitions",
+          "CheckBoxListTestScript",
+          "Treeview_IsEnabled_Demo",
+          "TimePicker_Test",
+          "Plasma Notification",
+          "NumericDemo",
+          "MessiNewsDetails",
+          "IAS_DateTimeParsingIssues_DateTimeOffset",
+          "GetEligibleResourcesTest",
+          "ServiceConfigurationTests",
+          "IAS_Toolkit_Updated_RowColumnDefinitions_Test",
+          "1081_Features",
+          "Toolkit_TimeZone_Test",
+          "PushPlasmaNotification",
+          "PlasmaSetTransmissionSource",
+          "FinnishBroadcastingCompany_RegressionTest",
+          "IAS_TreeView_Performance_Demo",
+          "IAS_Demo",
+          "DropdownTest",
+          "UpdateTable",
+          "TestTooltip",
+          "RT_AUTOMATION_IAS_Validation_Validation",
+          "ProfileHelperTests",
+          "IAS_ProgressReporter",
+          "GetParameter",
+          "TestScriptRemoveOrderReference",
+          "SetProtocolFunctionManagerConfiguration",
+          "IAS_Style_Demo",
+          "IAS_DateTimeParsingIssues",
+          "IAS_CheckboxListDemo",
+          "FileUpload",
+          "TreeViewDemo",
+          "TimeZoneDemo",
+          "ServiceDefinitionRetrieval",
+          "VodafoneZiggo - Alarm Collector",
+          "UpdateOrderVisibilityRights",
+          "PlasmaNotificationWriter",
+          "IAS_ProgressDialog_Title",
+          "FocusLostDateTimePicker_Change",
+          "Test_Script_1041",
+          "Set Output Monitor",
+          "PlasmaDataHandler",
+          "MessiLiveDetails",
+          "EditFeenixElementData",
+          "ContractManagerExternalRequestsTest",
+          "ResourcePoolsImportExport",
+          "RadioButtonListWantsOnChange_1_0_6",
+          "Plasma Update DateTime",
+          "Pioneers_YLE_MS_SprintReviewer",
+          "NoFileSelectorTestScript",
+          "NestedCollapseButtonExample",
+          "MultipleDropDownsTest",
+          "IASProgressDemo",
+          "FindReservationsForCertainResource",
+          "FileAttachmentTestScript",
+          "SectionOverlappingDueToFileSelector",
+          "MultilineTextBoxDemo",
+          "IAS_Example",
+          "IAS_Demo_WithTimeLogging",
+          "GetReservationJson",
+          "FileAttachmentTestScript_GVH",
+          "EligbleResources",
+          "Count_Reservations",
+          "1091_Features",
+          "TestBoxUpdateTest",
+          "StartNowIssues",
+          "RenameElements",
+          "removeServiceReservation",
+          "JVT Example",
+          "IAS_Helloworld",
+          "FocusLostDateTimePicker_Focus",
+          "ConfigureDocumentationLinks",
+          "WantsOnFocusLost",
+          "FileSelector_Eventing_Test",
+          "DoubleTreeViews",
+          "RegressionTestRunner"
+        ]
+      },
+      {
+        "Sa": [
+          "YLE\\Tests\\FeenixPlasmaMapping",
+          "Feenix_Plasma_Mapping_2",
+          "Feenix_Plasma_Mapping_1"
+        ]
+      },
+      {
+        "Sa": [
+          "SDU",
+          "Link booking to ticket",
+          "Link booking to ticket VSC"
+        ]
+      },
+      {
+        "Sa": [
+          "KMO",
+          "Update Messi Live Order Filter Properties",
+          "Update Messi News Order Filter Properties",
+          "CRUD bookings",
+          "GetRecordingLineBookingByID"
+        ]
+      },
+      {
+        "Sa": [
+          "RTManager\\Team Solutions\\RT_Diagnostics",
+          "RT_Diagnostics_CheckLogLevels",
+          "RT_Diagnostics_Backup_Check",
+          "RT_Diagnostics_Alarm_Rootkey_0",
+          "RT_Diagnostics_DMS_XML_Duplicate_IPs",
+          "RT_Diagnostics_Clear_Invalid_DVE",
+          "RT_Diagnostics_XmlFile_Validator",
+          "RT_Diagnostics_Cleanup_Directories",
+          "RT_Diagnostics_FindUnusedElements",
+          "RT_Diagnostics_AgentConnections",
+          "RT_Diagnostics_Detect_FileDifferences",
+          "RT_Diagnostics_LogFile_Analyzer",
+          "RT_Diagnostics_Upgrade_Package_Size",
+          "RT_Diagnostics_ResourceManager_Initialization",
+          "RT_Diagnostics_Error_Alarms",
+          "RT_Diagnostics_KnownElements",
+          "RT_Diagnostics_Monitor_TCP_Ports",
+          "RT_Diagnostics_Element_States",
+          "RT_Diagnostics_Duplicate_Views_Check"
+        ]
+      },
+      {
+        "Sa": [
+          "YLE\\Tests\\Feenix",
+          "Feenix_Test_Case_2_16_B",
+          "Feenix_Test_Case_2_6",
+          "Feenix_Test_Case_2_5",
+          "Feenix_Test_Case_2_4",
+          "Feenix_Test_Case_2_3",
+          "Feenix_Test_Case_2_29",
+          "Feenix_Test_Case_2_28",
+          "Feenix_Test_Case_2_18",
+          "Feenix_Test_Case_2_17",
+          "Feenix_Test_Case_2_13",
+          "Feenix_Test_Case_2_12",
+          "Feenix_Test_Case_2_1",
+          "Feenix_Test_Case_2_2"
+        ]
+      },
+      {
+        "Sa": [
+          "Tmp",
+          "Test_EligibleResources"
+        ]
+      },
+      {
+        "Sa": [
+          "Test/JVT",
+          "Automation script"
+        ]
+      },
+      {
+        "Sa": [
+          "Singular Live",
+          "Singular Live - New Stream"
+        ]
+      },
+      {
+        "Sa": [
+          "YLE/Regression",
+          "RT_YLE_OrderCreation_Single",
+          "RT_YLE_OrderCreation_ServiceBookingResult",
+          "RT_YLE_OrderCreation_OrderBookingResult",
+          "RT_YLE_OrderCreation_CompleteOrderBookingResult",
+          "RT_YLE_SatelliteRX",
+          "RT_YLE_OrderCreation_PushResults",
+          "RT_YLE_OrderCreation_Verification",
+          "RT_YLE_OrderCreation_ServiceResourceAssignmentResult",
+          "RT_YLE_OrderCreation_Initial",
+          "RT_YLE_UI_Run Cypress tests"
+        ]
+      },
+      {
+        "Sa": [
+          "WHA",
+          "TicketViewScript"
+        ]
+      },
+      {
+        "Sa": [
+          "PFM",
+          "PFM_ProfileInstancesImportExport"
+        ]
+      },
+      {
+        "Sa": [
+          "RTManager\\Team Device\\RT_Serial",
+          "RT_Serial_SmartSerial_SPI"
+        ]
+      },
+      {
+        "Sa": [
+          "YLE\\ProfileLoadScripts",
+          "PLS_EricssonRX8200_Decoding"
+        ]
+      },
+      {
+        "Sa": [
+          "YLE/SRM",
+          "ReleaseRecordingResources",
+          "ForceDeleteResource",
+          "ForceDeleteOrder",
+          "ResourceProvisioning",
+          "ReprocessOrders",
+          "FindReservationInstance",
+          "UpdateOrderStatus",
+          "HandleRecurringOrderAction",
+          "HandleOrderAction",
+          "HandleEventAction",
+          "EditOrderTemplate",
+          "HandleOrderStartFailure",
+          "ClearReservations",
+          "AssignRecordingResources",
+          "UpdateVisibilityRights",
+          "UpdateServiceStatus",
+          "HandleServiceStartFailure",
+          "ClearExpiredServices",
+          "MatrixOutputLbandResourceCapabilityUpdates",
+          "HandleServiceAction",
+          "DecodingResourceCapabilityUpdates",
+          "RemoveReservationFieldDescriptors",
+          "UpdateOrdersAfterUserTaskStatusChange"
+        ]
+      },
+      {
+        "Sa": [
+          "RTManager\\Core Ecosystem\\RT_Diagnostics",
+          "RT_Diagnostics_Check_NATS"
+        ]
+      },
+      {
+        "Sa": [
+          "Test",
+          "Popup test",
+          "Change job sectiondefinition name",
+          "EOS FastZap",
+          "DeviceUsage",
+          "ShowProgress test",
+          "test",
+          "DashboardTest"
+        ]
+      },
+      {
+        "Sa": [
+          "Interactive",
+          "IAS_Script Mail Visibility",
+          "IAS_Script Mail"
+        ]
+      },
+      {
+        "Sa": [
+          "IasSubScriptTest",
+          "UpdateResourcesScript",
+          "EditOrderScript",
+          "MainScript"
+        ]
+      },
+      {
+        "Sa": [
+          "YLE/Integrations",
+          "RemoveIntegrationOrders",
+          "ShowEBUDetails",
+          "PollCeitonResources",
+          "ShowCeitonDetails",
+          "ShowFeenixDetails",
+          "TriggerPebbleBeachIntegrationUpdate",
+          "ShowPlasmaDetails",
+          "ShowPebbleBeachDetails",
+          "ExecuteFeenixStopCommand",
+          "HandleIntegrationUpdate"
+        ]
+      },
+      {
+        "Sa": [
+          "Test Setup",
+          "Create External DCF Connections"
+        ]
+      },
+      {
+        "Sa": [
+          "YLE",
+          "Simulate IPLAY",
+          "Configure Contract Manager Users"
+        ]
+      },
+      {
+        "Sa": [
+          "Jobs",
+          "Job booking with action",
+          "Add booking to job",
+          "Job Booking"
+        ]
+      },
+      {
+        "Sa": [
+          "GQI",
+          "IISAPILogs",
+          "GQI_BookingDuration",
+          "GQI_BookingsWithProperties",
+          "GQI_Files",
+          "SLC-GQIOP-Format DateTime",
+          "SeparatedColumnToRows",
+          "GQI_Projects"
+        ]
+      },
+      {
+        "Sa": [
+          "YLE/ProfileLoadScripts",
+          "PLS_EricssonRX8200_Demodulating"
+        ]
+      },
+      {
+        "Sa": [
+          "PTP",
+          "PTP_SetupWizard",
+          "PTP_SetupWizard_Roles"
+        ]
+      },
+      {
+        "Sa": [
+          "YLE LOC",
+          "Take",
+          "PopulateVSGTable",
+          "DOM Setup",
+          "Link Group",
+          "Link Flow",
+          "vSG DOM CRUD"
+        ]
+      },
+      {
+        "Sa": [
+          "YLE/Customer UI",
+          "ConfirmOrders",
+          "LiveOrderForm_Old",
+          "ShowOrderHistory",
+          "AddEvent",
+          "LiveOrderForm_TRE",
+          "DeleteEvent",
+          "AddEventFromTemplate",
+          "UpdateEvent",
+          "StopOrder",
+          "LiveOrderForm",
+          "DeleteNonLiveOrder",
+          "BookMultipleOrders",
+          "AddOrUpdateNonLiveOrder",
+          "UpdateComments",
+          "LiveOrderForm_GVH",
+          "CancelMultipleOrders",
+          "AssignTicketToMe",
+          "ViewTicket",
+          "LiveOrderForm_RRA",
+          "UpdateTicketStatus",
+          "MergeEvents",
+          "AddNote",
+          "UpdateNonLiveUserTask",
+          "SendOrderDebugReport",
+          "UpdateService",
+          "AddService",
+          "UpdateNote",
+          "LiveOrderForm_VSC",
+          "LiveOrderForm_JVT",
+          "DuplicateNonLiveOrder"
+        ]
+      },
+      {
+        "Sa": [
+          "YLE/Tools",
+          "MigrateResourcesInBulkYLE",
+          "ExportProfileDefinitions",
+          "DeleteUnusedReservations",
+          "Debug",
+          "CustomerUI Launcher",
+          "UpdateOrderServiceDefinitionActions",
+          "LoggingCleanup",
+          "DeleteIntegrationOrders",
+          "CreateInvoiceReport",
+          "ConfigureMaxSimultaneousCalls",
+          "ExportServiceDefinitions",
+          "Configure Ticketing Colors",
+          "HandleNonLiveFolderDeletion",
+          "SendNonLiveDeletionReminders",
+          "Import Templates",
+          "LocalBackup",
+          "NonLiveLocalBackup",
+          "RunLogCollector",
+          "RemoveOldServices",
+          "MigrateResourcesYLE",
+          "Debug_VSC",
+          "Import Params",
+          "ExportSrm",
+          "DeleteReservationsForCertainResource",
+          "ExportResourcePools",
+          "AggregateMetrics"
+        ]
+      },
+      {
+        "Sa": [
+          "RTManager\\The Pioneers\\RT_ThePioneers",
+          "RT_YLE_UI_AddDestination",
+          "RT_SRM_StatusTransition05",
+          "RT_YLE_UI_ManualNonLiveOrder05",
+          "RT_YLE_UI_ManualNonLiveOrder04",
+          "RT_YLE_UI_ManualNonLiveOrder03",
+          "RT_YLE_UI_ManualNonLiveOrder02",
+          "RT_YLE_UI_ManualNonLiveOrder01",
+          "RT_SRM_StatusTransition06",
+          "RT_YLE_UI_MCROperator",
+          "RT_SRM_StatusTransition07",
+          "RT_SRM_StatusTransition10",
+          "RT_YLE_Plasma_17",
+          "RT_YLE_Plasma_16",
+          "RT_YLE_Plasma_15",
+          "RT_YLE_Plasma_14",
+          "RT_YLE_Plasma_13",
+          "RT_YLE_Plasma_12",
+          "RT_YLE_Plasma_11",
+          "RT_YLE_Plasma_10",
+          "RT_SRM_StatusTransition01",
+          "RT_SRM_Feenix_Integration",
+          "RT_SRM_Ceiton_Integration",
+          "RT_YLE_Plasma_09",
+          "RT_YLE_Plasma_08",
+          "RT_YLE_Plasma_07",
+          "RT_YLE_Plasma_06",
+          "RT_YLE_Plasma_05",
+          "RT_YLE_Plasma_04",
+          "RT_YLE_Plasma_03",
+          "RT_YLE_Plasma_02",
+          "RT_YLE_Plasma_01",
+          "RT_SRM_StatusTransition02",
+          "RT_YLE_UI_ProcessingSharing_02",
+          "RT_YLE_UI_ProcessingSharing_01",
+          "RT_SRM_StatusTransition03",
+          "RT_YLE_UI_UIPerformance",
+          "RT_YLE_PebbleBeach_04",
+          "RT_YLE_PebbleBeach_03",
+          "RT_YLE_PebbleBeach_02",
+          "RT_YLE_PebbleBeach_01",
+          "RT_YLE_UI_OrderManager02",
+          "RT_YLE_UI_OrderManager01",
+          "RT_YLE_Feenix_06",
+          "RT_YLE_Feenix_05",
+          "RT_YLE_Feenix_04",
+          "RT_YLE_Feenix_03",
+          "RT_YLE_Feenix_02",
+          "RT_YLE_Feenix_01",
+          "RT_YLE_UI_UMX_Line_Reuse_04",
+          "RT_YLE_UI_UMX_Line_Reuse_03",
+          "RT_YLE_UI_UMX_Line_Reuse_02",
+          "RT_YLE_UI_UMX_Line_Reuse_01",
+          "RT_SRM_DummyTest",
+          "RT_SRM_CustomerUI_LiveOrderForm",
+          "RT_YLE_UI_Shortest_Routing_Path_01",
+          "RT_SRM_Plasma_Integration",
+          "RT_SRM_StatusTransition08",
+          "RT_SRM_Eurovision_Integration",
+          "RT_YLE_UI_UMX_ReUse_02_WhileRunning",
+          "RT_YLE_UI_AddAudioProcessing_01_WhileRunning",
+          "RT_YLE_UI_AddAudioProcessing",
+          "RT_YLE_Plasma_99",
+          "RT_SRM_StatusTransition09",
+          "RT_YLE_UI_ManualLiveOrder03",
+          "RT_YLE_UI_ManualLiveOrder02",
+          "RT_YLE_UI_ManualLiveOrder01",
+          "RT_YLE_UI_LoadScripts",
+          "RT_SRM_StatusTransition04"
+        ]
+      }
+    ]
+  }
+}

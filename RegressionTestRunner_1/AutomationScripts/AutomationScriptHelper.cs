@@ -1,38 +1,52 @@
 ﻿namespace RegressionTestRunner.AutomationScripts
 {
 	using System;
-	using System.IO;
 	using System.Linq;
-	using Newtonsoft.Json;
-	using RegressionTestRunner.Helpers;
 	using Skyline.DataMiner.Automation;
 	using Skyline.DataMiner.Net.Messages.Advanced;
 
 	public static class AutomationScriptHelper
 	{
+		private const string AutomationScripts = "Automation Scripts";
+
+		public static AutomationScriptDirectory RetrieveScripts(IEngine engine)
+		{
+			return RetrieveScripts(engine, String.Empty);
+		}
+
 		public static AutomationScriptDirectory RetrieveScripts(IEngine engine, string directoryPath, bool searchSubDirectories = true)
 		{
-			AutomationScriptDirectory rootDirectory = new AutomationScriptDirectory(CleanPath(directoryPath));
+			AutomationScriptDirectory rootDirectory;
+			if (String.IsNullOrEmpty(directoryPath))
+			{
+				rootDirectory = new AutomationScriptDirectory(AutomationScripts);
+			}
+			else
+			{
+				rootDirectory = new AutomationScriptDirectory(CleanPath(directoryPath));
+			}
 
 			var response = engine.SendSLNetSingleResponseMessage(new GetAutomationInfoMessage(21, String.Empty)) as GetAutomationInfoResponseMessage;
 			if (response == null) return rootDirectory;
+
 			if (response.psaRet == null || response.psaRet.Psa == null || !response.psaRet.Psa.Any()) return rootDirectory;
 
 			foreach (string[] sa in response.psaRet.Psa.Select(x => x.Sa))
 			{
-				HandleAutomationScriptResponse(rootDirectory, sa, directoryPath, searchSubDirectories);
+				HandleAutomationScriptResponse(rootDirectory, sa, searchSubDirectories);
 			}
 
 			return rootDirectory;
 		}
 
-		private static void HandleAutomationScriptResponse(AutomationScriptDirectory rootDirectory, string[] sa, string directoryPath, bool searchSubDirectories)
+		private static void HandleAutomationScriptResponse(AutomationScriptDirectory rootDirectory, string[] sa, bool searchSubDirectories)
 		{
 			if (!sa.Any()) return;
 
 			string fullPath = CleanPath(sa.First());
 
-			if (!searchSubDirectories && !fullPath.Equals(directoryPath)) return;
+			if (!fullPath.StartsWith(rootDirectory.Path)) return;
+			if (!searchSubDirectories && !fullPath.Equals(rootDirectory.Path)) return;
 			if (!TryCreateDirectory(rootDirectory, fullPath, out AutomationScriptDirectory directory)) return;
 
 			foreach (string scriptName in sa.Skip(1))
@@ -49,14 +63,17 @@
 
 		private static bool TryCreateDirectory(AutomationScriptDirectory rootDirectory, string path, out AutomationScriptDirectory directory)
 		{
-			directory = null;
+			directory = rootDirectory;
+
+			if (String.Equals(rootDirectory.Path, path)) return true;
 
 			string[] splitPath = path.Split('/');
 			string[] splitRootPath = rootDirectory.Path.Split('/');
-			if (!splitPath.First().Equals(splitRootPath.First())) return false;
+
+			if (!Enumerable.SequenceEqual(splitRootPath, splitPath.Take(splitRootPath.Length))) return false;
 
 			directory = rootDirectory;
-			foreach (string subPath in splitPath.Skip(1))
+			foreach (string subPath in splitPath.Skip(splitRootPath.Length))
 			{
 				if (!directory.Directories.TryGetValue(subPath, out AutomationScriptDirectory childDirectory))
 				{
@@ -76,7 +93,8 @@
 
 		private static string CleanPath(string path)
 		{
-			return path.Replace("\\", "/").Trim('/');
+			if (String.IsNullOrWhiteSpace(path)) return AutomationScripts;
+			return $"{AutomationScripts}/" + path.Replace("\\", "/").Trim('/');
 		}
 	}
 }
