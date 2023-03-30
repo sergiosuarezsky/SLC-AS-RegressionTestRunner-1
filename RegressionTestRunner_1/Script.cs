@@ -108,12 +108,10 @@ namespace RegressionTestRunner
 			string serializedConfig = engine.GetScriptParam(ScriptConfigurationParamName)?.Value;
 			if (!ScriptConfiguration.TryDeserialize(serializedConfig, out ScriptConfiguration scriptConfiguration))
 			{
-				engine.GenerateInformation("RegressionTestRunner|Run interactive");
 				RunInteractive();
 			}
 			else
 			{
-				engine.GenerateInformation("RegressionTestRunner|Run silent");
 				RunSilent(scriptConfiguration);
 			}
 		}
@@ -131,8 +129,6 @@ namespace RegressionTestRunner
 
 			// Get standalone scripts
 			scripts.UnionWith(scriptConfiguration.Scripts);
-
-			engine.GenerateInformation($"RegressionTestRunner|Scripts to run: {String.Join(", ", scripts)}");
 
 			regressionTestManager = new RegressionTestManager(engine, scripts.ToArray());
 			regressionTestManager.ProgressReported += (sender, args) => engine.GenerateInformation(args.Progress);

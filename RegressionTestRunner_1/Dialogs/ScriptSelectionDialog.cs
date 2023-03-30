@@ -60,7 +60,6 @@
 				AddWidget(new WhiteSpace(), ++row, 0, 1, 5);
 				AddWidget(SelectAgentButton, ++row, 0, 1, 5);
 
-				Engine.GenerateInformation($"ScriptSelectionDialog|GenerateUi|Depth: {treeView.Depth}");
 				for (int i = 0; i < treeView.Depth; i++) SetColumnWidth(i, 50);
 			}
 			else
