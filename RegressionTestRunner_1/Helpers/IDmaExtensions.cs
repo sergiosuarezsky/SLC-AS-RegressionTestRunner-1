@@ -1,6 +1,6 @@
 ﻿namespace RegressionTestRunner.Helpers
 {
-	using Skyline.DataMiner.Library.Common;
+	using Skyline.DataMiner.Core.DataMinerSystem.Common;
 
 	public static class IDmaExtensions
 	{

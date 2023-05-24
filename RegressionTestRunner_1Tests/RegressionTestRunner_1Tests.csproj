@@ -63,6 +63,9 @@
     <PackageReference Include="Newtonsoft.Json">
       <Version>13.0.3</Version>
     </PackageReference>
+    <PackageReference Include="Skyline.DataMiner.Dev.Automation">
+      <Version>10.3.6</Version>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\RegressionTestRunner_1\RegressionTestRunner_1.csproj">

@@ -5,7 +5,7 @@
 	using System.Linq;
 	using System.Text;
 	using Skyline.DataMiner.Automation;
-	using Skyline.DataMiner.Library.Automation;
+	using Skyline.DataMiner.Core.DataMinerSystem.Automation;
 
 	public class RegressionTestReport
 	{

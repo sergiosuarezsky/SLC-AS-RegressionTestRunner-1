@@ -19,8 +19,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Documentation", "Documentat
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Code Analysis", "Code Analysis", "{7F0B53A4-15FD-4876-9203-49FEBCF98EBC}"
 	ProjectSection(SolutionItems) = preProject
-		Internal\Code Analysis\SonarLint-QuickActions-Active.ruleset = Internal\Code Analysis\SonarLint-QuickActions-Active.ruleset
-		Internal\Code Analysis\SonarLint-QuickActions-Inactive.ruleset = Internal\Code Analysis\SonarLint-QuickActions-Inactive.ruleset
+		Internal\Code Analysis\qaction-debug.ruleset = Internal\Code Analysis\qaction-debug.ruleset
+		Internal\Code Analysis\qaction-release.ruleset = Internal\Code Analysis\qaction-release.ruleset
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "RegressionTestRunner", "RegressionTestRunner", "{123ECA0C-3F75-4C21-9BF8-3A9700E5E144}"

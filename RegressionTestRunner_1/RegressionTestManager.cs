@@ -7,8 +7,8 @@
 	using RegressionTestRunner.Helpers;
 	using RegressionTestRunner.RegressionTests;
 	using Skyline.DataMiner.Automation;
-	using Skyline.DataMiner.Library.Automation;
-	using Skyline.DataMiner.Library.Common;
+	using Skyline.DataMiner.Core.DataMinerSystem.Automation;
+	using Skyline.DataMiner.Core.DataMinerSystem.Common;
 	using Skyline.DataMiner.Net.Messages;
 
 	public class RegressionTestManager
