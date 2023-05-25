@@ -17,12 +17,14 @@
 
 		private const string RegressionTestProtocolName = "Skyline Regression Test Result Collector";
 		private const int RegressionTestResultsTablePid = 100;
+		private const int RegressionTestResultsRefreshStatisticsButtonPid = 203;
 
 		private readonly IEngine engine;
 		private readonly string[] scripts = new string[0];
 		private readonly List<RegressionTestResult> results = new List<RegressionTestResult>();
 
 		private IDmsTable regressionTestResultCollectorResultsTable;
+		private IDmsStandaloneParameter<int> regressionTestResultCollectorRefreshStatisticsButton;
 
 		public RegressionTestManager(IEngine engine, params string[] testScripts)
 		{
@@ -46,6 +48,8 @@
 				var dms = engine.GetDms();
 				var element = dms.GetElement(rawElement.ElementName);
 				regressionTestResultCollectorResultsTable = element.GetTable(RegressionTestResultsTablePid);
+
+				regressionTestResultCollectorRefreshStatisticsButton = element.GetStandaloneParameter<int>(RegressionTestResultsRefreshStatisticsButtonPid);
 			}
 			catch (Exception e)
 			{
@@ -109,6 +113,9 @@
 					regressionTestResultCollectorResultsTable.AddRow(result.ToObjectRow());
 				}
 			}
+
+			// refresh
+			regressionTestResultCollectorRefreshStatisticsButton.SetValue(1);
 
 			ReportProgress($"Finished pushing results");
 		}
