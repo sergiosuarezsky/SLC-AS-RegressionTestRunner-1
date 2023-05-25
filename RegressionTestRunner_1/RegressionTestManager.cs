@@ -24,7 +24,7 @@
 		private readonly List<RegressionTestResult> results = new List<RegressionTestResult>();
 
 		private IDmsTable regressionTestResultCollectorResultsTable;
-		private IDmsStandaloneParameter<int> regressionTestResultCollectorRefreshStatisticsButton;
+		private IDmsStandaloneParameter<int?> regressionTestResultCollectorRefreshStatisticsButton;
 
 		public RegressionTestManager(IEngine engine, params string[] testScripts)
 		{
@@ -49,7 +49,7 @@
 				var element = dms.GetElement(rawElement.ElementName);
 				regressionTestResultCollectorResultsTable = element.GetTable(RegressionTestResultsTablePid);
 
-				regressionTestResultCollectorRefreshStatisticsButton = element.GetStandaloneParameter<int>(RegressionTestResultsRefreshStatisticsButtonPid);
+				regressionTestResultCollectorRefreshStatisticsButton = element.GetStandaloneParameter<int?>(RegressionTestResultsRefreshStatisticsButtonPid);
 			}
 			catch (Exception e)
 			{
