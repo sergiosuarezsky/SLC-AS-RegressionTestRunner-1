@@ -8,7 +8,7 @@
 	using RegressionTestRunner.AutomationScripts;
 	using RegressionTestRunner.Sections;
 	using Skyline.DataMiner.Automation;
-	using Skyline.DataMiner.DeveloperCommunityLibrary.InteractiveAutomationToolkit;
+	using Skyline.DataMiner.Utils.InteractiveAutomationScript;
 	using Skyline.DataMiner.Net.AutomationUI.Objects;
 	using Skyline.DataMiner.Net.Messages.Advanced;
 

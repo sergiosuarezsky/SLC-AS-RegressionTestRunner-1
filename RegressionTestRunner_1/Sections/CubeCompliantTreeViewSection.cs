@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using RegressionTestRunner.Helpers;
-using Skyline.DataMiner.DeveloperCommunityLibrary.InteractiveAutomationToolkit;
+using Skyline.DataMiner.Utils.InteractiveAutomationScript;
 using Skyline.DataMiner.Net.AutomationUI.Objects;
 
 namespace RegressionTestRunner.Sections

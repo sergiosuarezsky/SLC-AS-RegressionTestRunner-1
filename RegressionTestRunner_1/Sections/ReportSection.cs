@@ -8,7 +8,7 @@
 	using System.Threading.Tasks;
 	using RegressionTestRunner.Helpers;
 	using RegressionTestRunner.RegressionTests;
-	using Skyline.DataMiner.DeveloperCommunityLibrary.InteractiveAutomationToolkit;
+	using Skyline.DataMiner.Utils.InteractiveAutomationScript;
 
 	public class ReportSection : Section
 	{

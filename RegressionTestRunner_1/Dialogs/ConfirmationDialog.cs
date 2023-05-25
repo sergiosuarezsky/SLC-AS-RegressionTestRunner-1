@@ -1,7 +1,7 @@
 ﻿namespace RegressionTestRunner.Dialogs
 {
 	using Skyline.DataMiner.Automation;
-	using Skyline.DataMiner.DeveloperCommunityLibrary.InteractiveAutomationToolkit;
+	using Skyline.DataMiner.Utils.InteractiveAutomationScript;
 
 	public class ConfirmationDialog : Dialog
 	{

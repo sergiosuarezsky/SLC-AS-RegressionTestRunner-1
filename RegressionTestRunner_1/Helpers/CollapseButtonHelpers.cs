@@ -5,7 +5,7 @@
 	using System.Linq;
 	using System.Text;
 	using System.Threading.Tasks;
-	using Skyline.DataMiner.DeveloperCommunityLibrary.InteractiveAutomationToolkit;
+	using Skyline.DataMiner.Utils.InteractiveAutomationScript;
 
 	public static class CollapseButtonHelpers
 	{
