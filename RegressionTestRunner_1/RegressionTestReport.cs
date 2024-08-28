@@ -117,10 +117,9 @@
 				List<double> failureRateList = new List<double>();
 				sb.AppendLine(GenerateParagraph($"Overall Failure Rate Last Run: {SuccessRate} %"));
 				sb.AppendLine("ReplaceAfter");
-				var failedAverageRate = AddRegressionTestTable(sb, testsFailed, "Failed Regression Tests", failureRateList);
+				AddRegressionTestTable(sb, testsFailed, "Failed Regression Tests", failureRateList);
 				AddFailedReasonTestTable(sb);
-				var successAverageRate = AddRegressionTestTable(sb, testsSucceed, "Passed Regression Tests", failureRateList);
-
+				AddRegressionTestTable(sb, testsSucceed, "Passed Regression Tests", failureRateList);
 				sb.AppendLine(GenerateLogLink("SLC-H62-G05"));
 
 				return sb.ToString().Replace("ReplaceAfter", GenerateParagraph($"Overall Failure Rate Longer Duration: {Math.Round(failureRateList.Average(), 2)} %"));
@@ -178,7 +177,7 @@
 			sb.AppendLine("</table>");
 		}
 
-		private double AddRegressionTestTable(StringBuilder sb, List<RegressionTestResult> testResults, string header, List<double> failureRateList)
+		private void AddRegressionTestTable(StringBuilder sb, List<RegressionTestResult> testResults, string header, List<double> failureRateList)
 		{
 			sb.AppendLine($"<h2 style=\"font-size:1.5em\">{header}</h2>");
 			sb.AppendLine("<table style=\"width:100%\">");
@@ -199,8 +198,6 @@
 			}
 
 			sb.AppendLine("</table>");
-
-			return failureRateList.Average();
 		}
 
 		private double CalculateFailureRate(Dictionary<string, List<TrendRecord>> trendResultDict, RegressionTestResult result)
